@@ -12,6 +12,8 @@ const router = useRouter();
 const { run, loading, error, staticMode, liveMode, mockMode, artifactUrl } = useRunArtifact();
 const query = ref('');
 const status = ref<'all' | DashboardVerdict>('all');
+const railOpen = ref(true);
+const detailsOpen = ref(true);
 const statusOptions: Array<{ label: string; value: 'all' | DashboardVerdict }> = [
   { label: 'All', value: 'all' },
   { label: 'Passed', value: 'passed' },
@@ -40,6 +42,13 @@ const contracts = computed(() => {
 
 const selectedId = computed(() => 'id' in route.params && typeof route.params.id === 'string' ? route.params.id : undefined);
 const selected = computed(() => run.value?.contracts.find((contract) => contract.id === selectedId.value) ?? contracts.value[0]);
+const workspaceStyle = computed<Record<string, string>>(() => ({
+  '--rail-width': railOpen.value ? '280px' : '0px',
+  '--rail-tablet-width': railOpen.value ? '240px' : '0px',
+  '--rail-mobile-height': railOpen.value ? '220px' : '0px',
+  '--details-width': detailsOpen.value ? '264px' : '0px',
+  '--details-tablet-height': detailsOpen.value ? '150px' : '0px',
+}));
 
 function selectContract(contract: DashboardContractResult) {
   router.push({ name: '/contracts/[...id]', params: { id: contract.id } });
@@ -73,8 +82,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 <template>
   <div class="min-h-screen bg-bg">
     <header class="h-11 grid grid-cols-[1fr_auto_1fr] max-[760px]:grid-cols-[1fr_auto] items-center px-3.5 border-b border-line bg-panel">
-      <div aria-label="Figloom">
+      <div class="flex items-center gap-3" aria-label="Figloom">
         <strong class="text-[0.9rem] tracking-[-0.015em]">Figloom</strong>
+        <UFieldGroup size="xs">
+          <UButton
+            color="neutral"
+            :variant="railOpen ? 'soft' : 'ghost'"
+            size="xs"
+            :aria-pressed="railOpen"
+            @click="railOpen = !railOpen"
+          >
+            Contracts
+          </UButton>
+          <UButton
+            color="neutral"
+            :variant="detailsOpen ? 'soft' : 'ghost'"
+            size="xs"
+            :aria-pressed="detailsOpen"
+            @click="detailsOpen = !detailsOpen"
+          >
+            Details
+          </UButton>
+        </UFieldGroup>
       </div>
       <div v-if="run" class="flex items-baseline gap-2 max-[760px]:hidden">
         <span class="text-[0.8rem] font-[550]">{{ run.suiteName ?? 'Verification run' }}</span>
@@ -98,12 +127,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
       <p class="text-muted text-[0.8rem]">Open this report through <code>figloom open</code> or serve static report directory over HTTP.</p>
     </main>
 
-    <main v-else-if="run" class="relative h-[calc(100vh-2.75rem)] overflow-hidden bg-bg">
-      <ImageInspector v-if="selected" :contract="selected" :artifact-url="artifactUrl" class="absolute inset-0" />
-      <div v-else class="absolute inset-0 flex items-center justify-center text-muted text-[0.85rem]">No contract selected.</div>
+    <main v-else-if="run" class="dashboard-workspace" :style="workspaceStyle">
+      <section class="compare-stage">
+        <ImageInspector v-if="selected" :contract="selected" :artifact-url="artifactUrl" />
+        <div v-else class="h-full flex items-center justify-center text-muted text-[0.85rem]">No contract selected.</div>
+      </section>
 
       <aside
-        class="absolute top-3 bottom-[72px] left-3 z-[4] flex w-[296px] border border-line rounded-[10px] bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] backdrop-saturate-[140%] shadow-[0_16px_40px_rgb(0_0_0_/_45%)] overflow-hidden max-[760px]:left-3 max-[760px]:right-3 max-[760px]:w-auto max-[760px]:max-h-[38vh] max-[760px]:top-3 max-[760px]:bottom-auto"
+        class="contract-dock min-w-0 min-h-0 border-r border-line bg-panel overflow-hidden"
+        :class="railOpen ? '' : 'is-collapsed'"
       >
         <div class="min-w-0 w-full min-h-0 grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(0,1fr)]">
           <header class="flex justify-between items-center px-3.5 pt-3.5 pb-2">
@@ -165,7 +197,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 
       <aside
         v-if="selected"
-        class="absolute top-3 bottom-3 right-3 z-[4] flex w-[264px] border border-line rounded-[10px] bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] backdrop-saturate-[140%] shadow-[0_16px_40px_rgb(0_0_0_/_45%)] overflow-hidden max-[980px]:w-[232px] max-[760px]:left-3 max-[760px]:w-auto max-[760px]:max-h-[38vh] max-[760px]:top-auto max-[760px]:bottom-[100px]"
+        class="details-dock min-w-0 min-h-0 border-l border-line bg-panel overflow-hidden"
+        :class="detailsOpen ? '' : 'is-collapsed'"
       >
         <div class="min-w-0 w-full min-h-0 grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-x-hidden overflow-y-auto pb-3.5">
           <header class="block px-3.5 pt-3.5 pb-2.5">

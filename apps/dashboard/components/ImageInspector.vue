@@ -29,6 +29,7 @@ const diffUrl = computed(() => props.artifactUrl(props.contract.diff?.path));
 const ready = computed(() => Boolean(props.contract.baseline && props.contract.actual));
 
 const viewportEl = ref<HTMLElement | null>(null);
+const splitPaneEl = ref<HTMLElement | null>(null);
 const contentSize = reactive({ width: 0, height: 0 });
 type EvidenceKind = 'baseline' | 'actual' | 'diff';
 const naturalSizes = reactive<Record<EvidenceKind, CanvasSize>>({
@@ -37,20 +38,25 @@ const naturalSizes = reactive<Record<EvidenceKind, CanvasSize>>({
   diff: { width: 0, height: 0 },
 });
 const autoFit = ref(true);
+const fittedScale = ref(1);
 const { view, MIN_ZOOM, MAX_ZOOM, fitToView, centerAt, zoomAt, pan } = useCanvasView();
+const canPan = computed(() => view.scale > fittedScale.value + 0.001);
 
 function containerSize(): CanvasSize {
   const el = viewportEl.value;
   if (!el) return { width: 0, height: 0 };
-  const width = mode.value === 'split' ? el.clientWidth / 2 : el.clientWidth;
-  return { width, height: el.clientHeight };
+  if (mode.value === 'split' && splitPaneEl.value) {
+    return { width: splitPaneEl.value.clientWidth, height: splitPaneEl.value.clientHeight };
+  }
+  return { width: el.clientWidth, height: el.clientHeight };
 }
 
 function fitToViewport(): void {
   if (!contentSize.width || !contentSize.height) return;
   const container = containerSize();
   if (!container.width || !container.height) return;
-  fitToView(container, contentSize);
+  fitToView(container, contentSize, mode.value === 'split' ? 20 : 40);
+  fittedScale.value = view.scale;
   autoFit.value = true;
 }
 
@@ -156,16 +162,22 @@ function stepZoom(factor: number): void {
 
 function onWheel(event: WheelEvent): void {
   if (!ready.value) return;
-  event.preventDefault();
   const rect = viewportEl.value?.getBoundingClientRect();
   if (!rect) return;
   let pivotX = event.clientX - rect.left;
-  const pivotY = event.clientY - rect.top;
-  if (mode.value === 'split') pivotX %= rect.width / 2;
+  let pivotY = event.clientY - rect.top;
+  if (mode.value === 'split' && splitPaneEl.value) {
+    pivotX %= splitPaneEl.value.clientWidth;
+    pivotY %= splitPaneEl.value.clientHeight;
+  }
   if (event.ctrlKey || event.metaKey) {
+    event.preventDefault();
     zoomAt(Math.exp(-event.deltaY * 0.01), pivotX, pivotY);
-  } else {
+  } else if (canPan.value) {
+    event.preventDefault();
     pan(event.deltaX, event.deltaY);
+  } else {
+    return;
   }
   autoFit.value = false;
 }
@@ -180,6 +192,7 @@ interface DragState {
 const dragState = ref<DragState | null>(null);
 
 function startPan(event: PointerEvent): void {
+  if (!canPan.value) return;
   if (event.button !== 0 && event.button !== 1) return;
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   dragState.value = {
@@ -236,39 +249,34 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="relative h-full bg-bg overflow-hidden" aria-label="Visual comparison inspector">
+  <section class="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_minmax(0,1fr)] bg-bg overflow-hidden" aria-label="Visual comparison inspector">
     <div
       v-if="ready"
       ref="viewportEl"
-      class="absolute inset-0 overflow-hidden touch-none"
-      :class="dragState ? 'cursor-grabbing' : 'cursor-grab'"
+      class="relative col-span-full row-start-2 min-h-0 overflow-hidden bg-[#101214]"
+      :class="canPan ? (dragState ? 'touch-none cursor-grabbing' : 'touch-none cursor-grab') : 'touch-pan-y cursor-default'"
       @wheel="onWheel"
       @pointerdown="startPan"
       @pointermove="movePan"
       @pointerup="endPan"
       @pointercancel="endPan"
     >
-      <div
-        class="absolute inset-0 [background-image:radial-gradient(circle,#2b2f34_1px,transparent_1px)] [background-size:22px_22px] pointer-events-none"
-        aria-hidden="true"
-      />
-
-      <template v-if="mode === 'split'">
-        <div class="absolute top-0 bottom-0 left-0 w-1/2 overflow-hidden border-r border-line">
+      <div v-if="mode === 'split'" class="absolute inset-0 grid grid-cols-2 max-[760px]:grid-cols-1 max-[760px]:grid-rows-2">
+        <div ref="splitPaneEl" class="relative min-w-0 min-h-0 overflow-hidden border-r border-line max-[760px]:border-r-0 max-[760px]:border-b">
           <span class="absolute top-2.5 left-2.5 z-[1] px-2 py-[3px] rounded-[4px] bg-[rgb(17_19_21_/_82%)] text-muted font-semibold text-[0.68rem] leading-none font-mono pointer-events-none">Baseline</span>
           <div class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
             <img class="block max-w-none select-none [-webkit-user-drag:none]" :style="imageStyle('baseline')" :src="baselineUrl" alt="Baseline capture" draggable="false" @load="onImageLoad($event, 'baseline')" />
           </div>
         </div>
-        <div class="absolute top-0 bottom-0 left-1/2 w-1/2 overflow-hidden">
+        <div class="relative min-w-0 min-h-0 overflow-hidden">
           <span class="absolute top-2.5 left-2.5 z-[1] px-2 py-[3px] rounded-[4px] bg-[rgb(17_19_21_/_82%)] text-muted font-semibold text-[0.68rem] leading-none font-mono pointer-events-none">Actual</span>
           <div class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
             <img class="block max-w-none select-none [-webkit-user-drag:none]" :style="imageStyle('actual')" :src="actualUrl" alt="Actual capture" draggable="false" @load="onImageLoad($event, 'actual')" />
           </div>
         </div>
-      </template>
+      </div>
 
-      <div v-else class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
+      <div v-if="mode !== 'split'" class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
         <ImageReveal
           v-if="mode === 'overlay'"
           v-model="reveal"
@@ -321,14 +329,14 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="!ready" class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-muted text-center bg-bg">
+    <div v-if="!ready" class="col-span-full row-span-full flex flex-col items-center justify-center gap-1.5 px-6 text-muted text-center bg-bg">
       <strong class="text-text text-[0.95rem]">Evidence unavailable</strong>
       <p class="max-w-[420px] m-0 text-[0.8rem]">{{ contract.blockers[0]?.message ?? 'Capture has not completed.' }}</p>
     </div>
 
     <UFieldGroup
       v-if="ready"
-      class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[3] flex items-center gap-0.5 p-1 border border-line rounded-lg bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] shadow-[0_10px_28px_rgb(0_0_0_/_40%)] max-[980px]:min-[761px]:max-w-[calc(100vw-580px)] max-[980px]:min-[761px]:overflow-x-auto max-[760px]:bottom-3 max-[760px]:max-w-[calc(100vw-24px)] max-[760px]:overflow-x-auto"
+      class="col-start-1 row-start-1 min-w-0 flex items-center justify-start gap-0.5 px-2 py-1.5 border-b border-line bg-panel overflow-x-auto max-[760px]:col-span-full"
       role="tablist"
       aria-label="Comparison mode"
     >
@@ -356,7 +364,7 @@ onBeforeUnmount(() => {
       </template>
     </UFieldGroup>
 
-    <UFieldGroup v-if="ready" class="absolute bottom-4 left-4 z-[3] flex items-center gap-0.5 p-1 border border-line rounded-lg bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] shadow-[0_10px_28px_rgb(0_0_0_/_40%)] max-[760px]:hidden">
+    <UFieldGroup v-if="ready" class="col-start-2 row-start-1 flex items-center justify-end gap-0.5 px-2 py-1.5 border-b border-line bg-panel max-[760px]:hidden">
       <UButton
         color="neutral"
         variant="ghost"

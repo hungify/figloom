@@ -23,10 +23,10 @@ export function useCanvasView() {
     view.ty = (container.height - content.height * view.scale) / 2;
   }
 
-  function fitToView(container: CanvasSize, content: CanvasSize): void {
+  function fitToView(container: CanvasSize, content: CanvasSize, padding = FIT_PADDING_PX): void {
     if (!content.width || !content.height || !container.width || !container.height) return;
-    const padX = Math.min(FIT_PADDING_PX, container.width / 4);
-    const padY = Math.min(FIT_PADDING_PX, container.height / 4);
+    const padX = Math.min(padding, container.width / 4);
+    const padY = Math.min(padding, container.height / 4);
     const scale = Math.min(
       (container.width - padX * 2) / content.width,
       (container.height - padY * 2) / content.height,
