@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter figloom-verify exec playwright install --with-deps chromium
+      - run: pnpm validate
+
+  publish:
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build release assets
+        run: pnpm --filter figloom-verify build:ui
+      - name: Verify synchronized package versions
+        id: release
+        shell: bash
+        run: |
+          contracts_version=$(node -p "require('./packages/contracts/package.json').version")
+          verify_version=$(node -p "require('./packages/verify/package.json').version")
+          cli_version=$(node -p "require('./packages/cli/package.json').version")
+          if [[ "$contracts_version" != "$verify_version" || "$verify_version" != "$cli_version" ]]; then
+            echo "Package versions must match: contracts=$contracts_version verify=$verify_version cli=$cli_version" >&2
+            exit 1
+          fi
+          echo "version=$cli_version" >> "$GITHUB_OUTPUT"
+      - name: Pack release artifacts
+        run: |
+          mkdir -p .release/contracts .release/verify .release/cli
+          pnpm --filter @figloom/contracts pack --pack-destination "$GITHUB_WORKSPACE/.release/contracts"
+          pnpm --filter @figloom/verify pack --pack-destination "$GITHUB_WORKSPACE/.release/verify"
+          pnpm --filter figloom-verify pack --pack-destination "$GITHUB_WORKSPACE/.release/cli"
+      - name: Publish packages in dependency order
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          publish_package() {
+            package_dir="$1"
+            package_name=$(node -p "require('./${package_dir}/package.json').name")
+            package_version=$(node -p "require('./${package_dir}/package.json').version")
+            if npm view "${package_name}@${package_version}" version --json >/dev/null 2>&1; then
+              echo "Skipping existing ${package_name}@${package_version}"
+              return
+            fi
+            pnpm --dir "$package_dir" publish --access public --provenance --no-git-checks
+          }
+
+          publish_package packages/contracts
+          publish_package packages/verify
+          publish_package packages/cli
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if gh release view "v${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "GitHub Release v${RELEASE_VERSION} already exists"
+          else
+            gh release create "v${RELEASE_VERSION}" .release/cli/*.tgz \
+              --target "$GITHUB_SHA" \
+              --title "v${RELEASE_VERSION}" \
+              --generate-notes
+          fi

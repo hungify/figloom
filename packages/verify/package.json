@@ -1,0 +1,54 @@
+{
+  "name": "@figloom/verify",
+  "version": "0.0.1",
+  "description": "Visual verification engine for Figma-to-web and web-to-web workflows.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hungify/figloom.git",
+    "directory": "packages/verify"
+  },
+  "homepage": "https://github.com/hungify/figloom/tree/main/packages/verify",
+  "bugs": {
+    "url": "https://github.com/hungify/figloom/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@figloom/contracts": "workspace:*",
+    "@figma/rest-api-spec": "^0.41.0",
+    "@playwright/test": "^1.61.1",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "ssim.js": "^3.5.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.1",
+    "@types/pixelmatch": "^5.2.6",
+    "@types/pngjs": "^6.0.5",
+    "tsx": "^4.22.4",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "packageManager": "pnpm@11.18.0"
+}
