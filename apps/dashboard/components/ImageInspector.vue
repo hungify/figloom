@@ -30,6 +30,7 @@ const ready = computed(() => Boolean(props.contract.baseline && props.contract.a
 
 const viewportEl = ref<HTMLElement | null>(null);
 const contentSize = reactive({ width: 0, height: 0 });
+const fitted = ref(false);
 const { view, MIN_ZOOM, MAX_ZOOM, fitToView, centerAt, zoomAt, pan } = useCanvasView();
 
 function containerSize(): CanvasSize {
@@ -41,7 +42,10 @@ function containerSize(): CanvasSize {
 
 function fitToViewport(): void {
   if (!contentSize.width || !contentSize.height) return;
-  fitToView(containerSize(), contentSize);
+  const container = containerSize();
+  if (!container.width || !container.height) return;
+  fitToView(container, contentSize);
+  fitted.value = true;
 }
 
 function zoomTo100(): void {
@@ -59,10 +63,12 @@ function measureFromEvidence(): boolean {
 }
 
 function onImageLoad(event: Event): void {
-  if (contentSize.width && contentSize.height) return;
-  const img = event.target as HTMLImageElement;
-  contentSize.width = img.naturalWidth;
-  contentSize.height = img.naturalHeight;
+  if (!contentSize.width || !contentSize.height) {
+    const img = event.target as HTMLImageElement;
+    contentSize.width = img.naturalWidth;
+    contentSize.height = img.naturalHeight;
+  }
+  if (fitted.value) return;
   fitToViewport();
 }
 
@@ -71,6 +77,7 @@ watch(
   () => {
     contentSize.width = 0;
     contentSize.height = 0;
+    fitted.value = false;
     reveal.value = 50;
     opacity.value = 55;
     void nextTick(() => {
@@ -82,6 +89,18 @@ watch(
 
 watch(mode, () => {
   void nextTick(fitToViewport);
+});
+
+let resizeObserver: ResizeObserver | null = null;
+watch(viewportEl, (el) => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  if (!el) return;
+  if (!fitted.value) fitToViewport();
+  resizeObserver = new ResizeObserver(() => {
+    if (!fitted.value) fitToViewport();
+  });
+  resizeObserver.observe(el);
 });
 
 const contentStyle = computed(() => ({
@@ -172,40 +191,46 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown);
+  resizeObserver?.disconnect();
+});
 </script>
 
 <template>
-  <section class="inspector-shell" aria-label="Visual comparison inspector">
+  <section class="relative h-full bg-bg overflow-hidden" aria-label="Visual comparison inspector">
     <div
       v-if="ready"
       ref="viewportEl"
-      class="canvas-viewport"
-      :class="{ 'is-panning': dragState }"
+      class="absolute inset-0 overflow-hidden touch-none"
+      :class="dragState ? 'cursor-grabbing' : 'cursor-grab'"
       @wheel="onWheel"
       @pointerdown="startPan"
       @pointermove="movePan"
       @pointerup="endPan"
       @pointercancel="endPan"
     >
-      <div class="canvas-dots" aria-hidden="true" />
+      <div
+        class="absolute inset-0 [background-image:radial-gradient(circle,#2b2f34_1px,transparent_1px)] [background-size:22px_22px] pointer-events-none"
+        aria-hidden="true"
+      />
 
       <template v-if="mode === 'split'">
-        <div class="split-pane">
-          <span class="split-label">Baseline</span>
-          <div class="canvas-content" :style="contentStyle">
-            <img class="canvas-image" :src="baselineUrl" alt="Baseline capture" draggable="false" @load="onImageLoad" />
+        <div class="absolute top-0 bottom-0 left-0 w-1/2 overflow-hidden border-r border-line">
+          <span class="absolute top-2.5 left-2.5 z-[1] px-2 py-[3px] rounded-[4px] bg-[rgb(17_19_21_/_82%)] text-muted font-semibold text-[0.68rem] leading-none font-mono pointer-events-none">Baseline</span>
+          <div class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
+            <img class="block w-full h-full object-fill select-none [-webkit-user-drag:none]" :src="baselineUrl" alt="Baseline capture" draggable="false" @load="onImageLoad" />
           </div>
         </div>
-        <div class="split-pane">
-          <span class="split-label">Actual</span>
-          <div class="canvas-content" :style="contentStyle">
-            <img class="canvas-image" :src="actualUrl" alt="Actual capture" draggable="false" @load="onImageLoad" />
+        <div class="absolute top-0 bottom-0 left-1/2 w-1/2 overflow-hidden">
+          <span class="absolute top-2.5 left-2.5 z-[1] px-2 py-[3px] rounded-[4px] bg-[rgb(17_19_21_/_82%)] text-muted font-semibold text-[0.68rem] leading-none font-mono pointer-events-none">Actual</span>
+          <div class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
+            <img class="block w-full h-full object-fill select-none [-webkit-user-drag:none]" :src="actualUrl" alt="Actual capture" draggable="false" @load="onImageLoad" />
           </div>
         </div>
       </template>
 
-      <div v-else class="canvas-content" :style="contentStyle">
+      <div v-else class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
         <ImageReveal
           v-if="mode === 'overlay'"
           v-model="reveal"
@@ -214,10 +239,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
           before-alt="Baseline capture"
           after-alt="Actual capture"
           :opacity="opacity"
+          @load="onImageLoad"
         />
         <img
           v-else-if="mode === 'baseline'"
-          class="canvas-image"
+          class="block w-full h-full object-fill select-none [-webkit-user-drag:none]"
           :src="baselineUrl"
           alt="Baseline capture"
           draggable="false"
@@ -225,7 +251,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
         />
         <img
           v-else-if="mode === 'actual'"
-          class="canvas-image"
+          class="block w-full h-full object-fill select-none [-webkit-user-drag:none]"
           :src="actualUrl"
           alt="Actual capture"
           draggable="false"
@@ -233,53 +259,83 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
         />
         <img
           v-else-if="mode === 'diff' && diffUrl"
-          class="canvas-image"
+          class="block w-full h-full object-fill select-none [-webkit-user-drag:none]"
           :src="diffUrl"
           alt="Visual difference heatmap"
           draggable="false"
+          @load="onImageLoad"
         />
       </div>
 
-      <div v-if="mode === 'diff' && !diffUrl" class="inspector-empty compact">
-        <strong>No diff image</strong>
-        <p>Comparison produced no residual heatmap.</p>
+      <div v-if="mode === 'diff' && !diffUrl" class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-muted text-center bg-transparent">
+        <strong class="text-text text-[0.95rem]">No diff image</strong>
+        <p class="max-w-[420px] m-0 text-[0.8rem]">Comparison produced no residual heatmap.</p>
       </div>
     </div>
 
-    <div v-if="!ready" class="inspector-empty">
-      <strong>Evidence unavailable</strong>
-      <p>{{ contract.blockers[0]?.message ?? 'Capture has not completed.' }}</p>
+    <div v-if="!ready" class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-muted text-center bg-bg">
+      <strong class="text-text text-[0.95rem]">Evidence unavailable</strong>
+      <p class="max-w-[420px] m-0 text-[0.8rem]">{{ contract.blockers[0]?.message ?? 'Capture has not completed.' }}</p>
     </div>
 
-    <div v-if="ready" class="floating-toolbar" role="tablist" aria-label="Comparison mode">
+    <div
+      v-if="ready"
+      class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[3] flex items-center gap-0.5 p-1 border border-line rounded-lg bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] shadow-[0_10px_28px_rgb(0_0_0_/_40%)] max-[980px]:min-[761px]:max-w-[calc(100vw-580px)] max-[980px]:min-[761px]:overflow-x-auto max-[760px]:bottom-3 max-[760px]:max-w-[calc(100vw-24px)] max-[760px]:overflow-x-auto"
+      role="tablist"
+      aria-label="Comparison mode"
+    >
       <button
         v-for="item in modes"
         :key="item.value"
         type="button"
         role="tab"
         :aria-selected="mode === item.value"
-        :class="{ active: mode === item.value }"
+        class="min-h-[30px] px-[11px] py-[5px] border-0 rounded-[5px] text-[0.78rem] cursor-pointer"
+        :class="mode === item.value ? 'text-[#11151a] bg-accent hover:bg-accent' : 'bg-transparent text-muted hover:text-text hover:bg-[var(--ui-bg-accented)]'"
         @click="mode = item.value"
       >
         {{ item.label }}
       </button>
       <template v-if="mode === 'overlay'">
-        <span class="toolbar-divider" aria-hidden="true" />
-        <label class="opacity-control">
+        <span class="w-px h-5 mx-1 bg-line" aria-hidden="true" />
+        <label class="flex items-center gap-1.5 pl-0.5 pr-1.5 text-muted text-xs">
           <span>Opacity</span>
-          <input v-model.number="opacity" type="range" min="0" max="100" />
-          <output>{{ opacity }}%</output>
+          <input v-model.number="opacity" class="w-[90px] accent-accent" type="range" min="0" max="100" />
+          <output class="min-w-8 text-right text-[#b9bdc2] text-[0.72rem]">{{ opacity }}%</output>
         </label>
       </template>
     </div>
 
-    <div v-if="ready" class="zoom-widget">
-      <button type="button" aria-label="Zoom out" :disabled="zoomPercent <= MIN_ZOOM * 100" @click="stepZoom(1 / zoomStepFactor)">−</button>
-      <button type="button" class="zoom-percent" title="Fit to view" @click="fitToViewport">{{ zoomPercent }}%</button>
-      <button type="button" aria-label="Zoom in" :disabled="zoomPercent >= MAX_ZOOM * 100" @click="stepZoom(zoomStepFactor)">+</button>
-      <span class="zoom-divider" aria-hidden="true" />
-      <button type="button" @click="zoomTo100">100%</button>
-      <button type="button" @click="fitToViewport">Fit</button>
+    <div v-if="ready" class="absolute bottom-4 left-4 z-[3] flex items-center gap-0.5 p-1 border border-line rounded-lg bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] shadow-[0_10px_28px_rgb(0_0_0_/_40%)] max-[760px]:hidden">
+      <button
+        type="button"
+        class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text enabled:hover:bg-[#25292e] disabled:opacity-[.35] disabled:cursor-default"
+        aria-label="Zoom out"
+        :disabled="zoomPercent <= MIN_ZOOM * 100"
+        @click="stepZoom(1 / zoomStepFactor)"
+      >
+        −
+      </button>
+      <button
+        type="button"
+        class="min-h-7 min-w-[46px] px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text enabled:hover:bg-[#25292e]"
+        title="Fit to view"
+        @click="fitToViewport"
+      >
+        {{ zoomPercent }}%
+      </button>
+      <button
+        type="button"
+        class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text enabled:hover:bg-[#25292e] disabled:opacity-[.35] disabled:cursor-default"
+        aria-label="Zoom in"
+        :disabled="zoomPercent >= MAX_ZOOM * 100"
+        @click="stepZoom(zoomStepFactor)"
+      >
+        +
+      </button>
+      <span class="w-px h-[18px] mx-0.5 bg-line" aria-hidden="true" />
+      <button type="button" class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer hover:text-text hover:bg-[#25292e]" @click="zoomTo100">100%</button>
+      <button type="button" class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer hover:text-text hover:bg-[#25292e]" @click="fitToViewport">Fit</button>
     </div>
   </section>
 </template>

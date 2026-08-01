@@ -25,9 +25,11 @@ export function useCanvasView() {
 
   function fitToView(container: CanvasSize, content: CanvasSize): void {
     if (!content.width || !content.height || !container.width || !container.height) return;
+    const padX = Math.min(FIT_PADDING_PX, container.width / 4);
+    const padY = Math.min(FIT_PADDING_PX, container.height / 4);
     const scale = Math.min(
-      (container.width - FIT_PADDING_PX * 2) / content.width,
-      (container.height - FIT_PADDING_PX * 2) / content.height,
+      (container.width - padX * 2) / content.width,
+      (container.height - padY * 2) / content.height,
     );
     centerAt(container, content, scale);
   }

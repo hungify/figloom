@@ -13,6 +13,8 @@ withDefaults(defineProps<{
   opacity: 100,
 });
 
+const emit = defineEmits<{ load: [Event] }>();
+
 const reveal = defineModel<number>({ default: 50 });
 const root = ref<HTMLElement | null>(null);
 const activePointer = ref<number | null>(null);
@@ -50,10 +52,16 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div ref="root" class="image-reveal">
-    <img class="image-reveal__layer" :src="beforeSrc" :alt="beforeAlt" draggable="false" />
+  <div ref="root" class="relative flex-none bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_10px_28px_rgb(0_0_0_/_24%)]">
     <img
-      class="image-reveal__layer image-reveal__after"
+      class="block max-w-none select-none [-webkit-user-drag:none]"
+      :src="beforeSrc"
+      :alt="beforeAlt"
+      draggable="false"
+      @load="emit('load', $event)"
+    />
+    <img
+      class="block max-w-none select-none [-webkit-user-drag:none] absolute inset-0"
       :src="afterSrc"
       :alt="afterAlt"
       :style="{
@@ -61,10 +69,11 @@ function onKeydown(event: KeyboardEvent) {
         opacity: opacity / 100,
       }"
       draggable="false"
+      @load="emit('load', $event)"
     />
     <div
-      class="image-reveal__divider"
-      :class="{ 'is-dragging': activePointer !== null }"
+      class="absolute -top-2 -bottom-2 w-6 -ml-3 cursor-ew-resize touch-none before:content-[''] before:absolute before:inset-y-0 before:left-1/2 before:bg-accent before:-translate-x-1/2 hover:before:w-0.5 focus-visible:before:w-0.5 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+      :class="activePointer !== null ? 'before:w-0.5' : 'before:w-px'"
       :style="{ left: `${reveal}%` }"
       role="slider"
       tabindex="0"
@@ -78,94 +87,10 @@ function onKeydown(event: KeyboardEvent) {
       @pointercancel.stop="stopDrag"
       @keydown="onKeydown"
     >
-      <span aria-hidden="true" />
+      <span
+        aria-hidden="true"
+        class="absolute top-1/2 left-1/2 w-[18px] h-[30px] border border-accent rounded-[3px] bg-[#20252b] -translate-x-1/2 -translate-y-1/2 before:content-[''] before:absolute before:top-1/2 before:left-[3px] before:w-0 before:h-0 before:border-t-[3px] before:border-b-[3px] before:border-t-transparent before:border-b-transparent before:border-r-[3px] before:border-r-accent before:-translate-y-1/2 after:content-[''] after:absolute after:top-1/2 after:right-[3px] after:w-0 after:h-0 after:border-t-[3px] after:border-b-[3px] after:border-t-transparent after:border-b-transparent after:border-l-[3px] after:border-l-accent after:-translate-y-1/2"
+      />
     </div>
   </div>
 </template>
-
-<style scoped>
-.image-reveal {
-  position: relative;
-  flex: none;
-  background: #f1f2f3;
-  box-shadow: 0 0 0 1px #353a40, 0 10px 28px rgb(0 0 0 / 24%);
-}
-
-.image-reveal__layer {
-  display: block;
-  max-width: none;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.image-reveal__after {
-  position: absolute;
-  inset: 0;
-}
-
-.image-reveal__divider {
-  position: absolute;
-  top: -8px;
-  bottom: -8px;
-  width: 24px;
-  margin-left: -12px;
-  cursor: ew-resize;
-  touch-action: none;
-}
-
-.image-reveal__divider::before {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  background: var(--accent);
-  content: '';
-  transform: translateX(-50%);
-}
-
-.image-reveal__divider:hover::before,
-.image-reveal__divider:focus-visible::before,
-.image-reveal__divider.is-dragging::before {
-  width: 2px;
-}
-
-.image-reveal__divider:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.image-reveal__divider span {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 18px;
-  height: 30px;
-  border: 1px solid var(--accent);
-  border-radius: 3px;
-  background: #20252b;
-  transform: translate(-50%, -50%);
-}
-
-.image-reveal__divider span::before,
-.image-reveal__divider span::after {
-  position: absolute;
-  top: 50%;
-  width: 0;
-  height: 0;
-  border-top: 3px solid transparent;
-  border-bottom: 3px solid transparent;
-  content: '';
-  transform: translateY(-50%);
-}
-
-.image-reveal__divider span::before {
-  left: 3px;
-  border-right: 3px solid var(--accent);
-}
-
-.image-reveal__divider span::after {
-  right: 3px;
-  border-left: 3px solid var(--accent);
-}
-</style>
