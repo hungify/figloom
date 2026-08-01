@@ -152,4 +152,4 @@ Dashboard-specific development and HMR instructions live in [`apps/dashboard/REA
 
 ## Repository boundary
 
-This repository owns verification engine, CLI, dashboard, artifacts, tests, and npm releases. Agent skills and plugin adapters remain in `hungify/skills` and consume released `figloom-verify` commands.
+This repository owns verification engine, CLI, dashboard, artifacts, tests, and npm releases. Agent skills and plugin adapters remain in [`hungify/skills`](https://github.com/hungify/skills) and consume released `figloom-verify` commands.
