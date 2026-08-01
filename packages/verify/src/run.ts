@@ -131,6 +131,7 @@ export async function runVerification(
     timeoutMs: options.timeoutMs,
     hideDevtoolsChrome: options.hideDevtoolsChrome,
     devtoolsMarker: options.devtoolsMarker,
+    maskSelectors: options.maskSelectors,
   });
   if (!captured.ok) return captured;
 
@@ -216,6 +217,7 @@ export async function runVerification(
     target: options.target,
     selector: options.selector ?? null,
     expectSize: options.expectSize ?? null,
+    maskSelectors: options.maskSelectors ?? null,
     baseline: options.baseline.evidence,
     evidenceHashes: {
       baseline: fileHash(baselinePath),

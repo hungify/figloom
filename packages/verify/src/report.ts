@@ -42,6 +42,7 @@ export function writeArtifacts(input: ReportInput): void {
     pageReason: result.pageReason,
     runType: result.runType,
     expectSize: result.expectSize,
+    maskSelectors: result.maskSelectors,
     actualPath: path.resolve(input.actualPath),
     capturedAt: result.capturedAt,
     stability: result.stability,

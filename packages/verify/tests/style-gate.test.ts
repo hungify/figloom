@@ -138,6 +138,19 @@ describe("style gate (Figma REST style vs live computed style)", () => {
     expect(r.topIssues.some((issue) => issue.kind === "style-color")).toBe(false);
   });
 
+  it("gradient-only fill skips color check with warning", async () => {
+    const r = await styleGate({
+      ...base,
+      domStyle: { ...matchingDomStyle, color: { r: 255, g: 0, b: 0, a: 1 } },
+      fetchImpl: figmaOk({
+        ...textNodeDoc,
+        fills: [{ type: "GRADIENT_LINEAR", visible: true }],
+      }),
+    });
+    expect(r.topIssues.some((issue) => issue.kind === "style-color")).toBe(false);
+    expect(r.warnings.some((warning) => warning.includes("no visible SOLID fill"))).toBe(true);
+  });
+
   it("line-height and letter-spacing mismatches are reported", async () => {
     const r = await styleGate({
       ...base,
