@@ -88,9 +88,7 @@ Figloom does not start applications. Start required servers before verification.
 
 ## Install
 
-Package is not published yet. During repository development, run from repository root with `pnpm figloom`, or install workspace package `packages/cli` into a test project.
-
-After first npm release:
+Package is published as `figloom-verify`. During repository development, run from repository root with `pnpm figloom`.
 
 ```bash
 npm install --save-dev figloom-verify
@@ -189,6 +187,21 @@ Use region scope for component or bounded content:
 ```
 
 Selector must resolve exactly once. Final region evidence uses `component/strict`.
+
+### Masking dynamic content
+
+Add `maskSelectors` (up to 10 CSS selectors) to a contract to blank out timestamps, avatars, or other content that changes between runs, before both the baseline and actual capture are diffed:
+
+```json
+{
+  "id": "dashboard.desktop",
+  "maskSelectors": ["[data-testid='last-updated']", ".user-avatar"]
+}
+```
+
+Masked elements are overlaid with a solid box on both sides of the comparison, so genuinely dynamic regions no longer produce false diffs. `figloom done-gate` rejects evidence whose `maskSelectors` do not match the contract.
+
+`maskSelectors` requires a `web` baseline — masking runs through Playwright during capture, so a `figma` baseline has no masking path and the contract rejects `maskSelectors` in that case.
 
 ## Run verification
 

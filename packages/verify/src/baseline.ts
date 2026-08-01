@@ -112,6 +112,7 @@ export class WebBaselineProvider implements BaselineProvider<WebBaselineSource> 
       timeoutMs: options.contract.timeoutMs,
       hideDevtoolsChrome: options.contract.hideDevtoolsChrome,
       devtoolsMarker: options.contract.devtoolsMarker,
+      maskSelectors: options.contract.maskSelectors,
     });
     if (!captured.ok) {
       return { ok: false, error: captured.error, message: captured.message };
