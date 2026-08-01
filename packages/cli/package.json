@@ -54,9 +54,11 @@
     "done-gate": "tsx src/cli.ts done-gate"
   },
   "dependencies": {
+    "@clack/prompts": "^1.7.0",
     "@figloom/contracts": "workspace:*",
     "@figloom/verify": "workspace:*",
     "@hono/node-server": "^2.0.12",
+    "commander": "^15.0.0",
     "hono": "4.12.32",
     "open": "^11.0.0",
     "tsx": "^4.22.4"

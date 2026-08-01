@@ -11,6 +11,20 @@ const packageVersion = (
     version: string;
   }
 ).version;
+const runArguments = [
+  "--url",
+  "http://127.0.0.1:3000",
+  "--viewport",
+  "desktop",
+  "--viewport-size",
+  "100x100",
+  "--gold",
+  "missing.png",
+  "--out-dir",
+  ".figloom/artifacts/visual-verifications/test",
+  "--node-id",
+  "1:2",
+];
 
 describe("published CLI", () => {
   it("prints help successfully through the package bin", () => {
@@ -45,25 +59,7 @@ describe("published CLI", () => {
 
   it.each([
     ["compare", ["--gold", "missing.png", "--actual", "missing.png", "--profile", "audit"]],
-    [
-      "run",
-      [
-        "--url",
-        "http://127.0.0.1:3000",
-        "--viewport",
-        "desktop",
-        "--viewport-size",
-        "100x100",
-        "--gold",
-        "missing.png",
-        "--out-dir",
-        ".figloom/artifacts/visual-verifications/test",
-        "--node-id",
-        "1:2",
-        "--run-type",
-        "audit",
-      ],
-    ],
+    ["run", [...runArguments, "--run-type", "audit"]],
   ])("rejects invalid %s enum flags at usage boundary", (command, args) => {
     const result = spawnSync(
       process.execPath,
@@ -71,6 +67,26 @@ describe("published CLI", () => {
       { encoding: "utf8" },
     );
     expect(result.status).toBe(2);
+    expect(result.stderr).toContain("Usage:");
+  });
+
+  it.each([
+    ["unknown option", ["status", "--project-rooot", packageRoot], "unknown option '--project-rooot'"],
+    ["missing required option", ["verify", "--output", "artifact.json"], "required option '--contract <path>' not specified"],
+    ["missing option value", ["status", "--project-root"], "option '--project-root <dir>' argument missing"],
+    ["duplicate option", ["status", "--project-root", packageRoot, "--project-root", packageRoot], "used more than once"],
+    ["extra argument", ["status", "unexpected"], "too many arguments"],
+    ["unpaired region size", ["run", ...runArguments, "--expect-width", "100"], "must be used together"],
+    ["unscoped devtools marker", ["run", ...runArguments, "--devtools-marker", "vite"], "requires --hide-devtools-chrome"],
+  ])("rejects unsafe CLI input: %s", (_label, args, message) => {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(packageRoot, "bin", "figloom.js"), ...args],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(message);
     expect(result.stderr).toContain("Usage:");
   });
 });

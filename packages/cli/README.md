@@ -98,6 +98,14 @@ npx playwright install chromium
 npx figloom status --project-root "$PWD"
 ```
 
+Create an initial schema-v4 contract interactively:
+
+```bash
+npx figloom init
+```
+
+By default this writes `.figloom/visual-contract.json`. Use `--output <path>` to choose another location. Existing files require explicit `--force`.
+
 Set Figma token only when using Figma baselines:
 
 ```bash
