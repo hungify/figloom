@@ -72,10 +72,10 @@ function onKeydown(event: KeyboardEvent) {
       aria-valuemin="0"
       aria-valuemax="100"
       :aria-valuenow="reveal"
-      @pointerdown.prevent="startDrag"
-      @pointermove.prevent="drag"
-      @pointerup="stopDrag"
-      @pointercancel="stopDrag"
+      @pointerdown.prevent.stop="startDrag"
+      @pointermove.prevent.stop="drag"
+      @pointerup.stop="stopDrag"
+      @pointercancel.stop="stopDrag"
       @keydown="onKeydown"
     >
       <span aria-hidden="true" />
@@ -89,8 +89,6 @@ function onKeydown(event: KeyboardEvent) {
   flex: none;
   background: #f1f2f3;
   box-shadow: 0 0 0 1px #353a40, 0 10px 28px rgb(0 0 0 / 24%);
-  transform: scale(var(--zoom));
-  transform-origin: center;
 }
 
 .image-reveal__layer {
