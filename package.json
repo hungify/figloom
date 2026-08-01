@@ -1,0 +1,25 @@
+{
+  "name": "figloom",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Visual verification monorepo for Figma-to-web and web-to-web workflows.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "pnpm --filter @figloom/dashboard build",
+    "dev:dashboard": "pnpm --filter @figloom/dashboard dev",
+    "figloom": "pnpm --filter figloom-verify cli",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @figloom/verify test && pnpm --filter figloom-verify test",
+    "validate": "pnpm run typecheck && pnpm run test",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.1",
+    "typescript": "6.0.3"
+  }
+}

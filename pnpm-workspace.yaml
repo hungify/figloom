@@ -1,0 +1,10 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+allowBuilds:
+  esbuild: true
+  vue-demi: true
+
+overrides:
+  esbuild: 0.28.1

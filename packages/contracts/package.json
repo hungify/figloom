@@ -1,0 +1,42 @@
+{
+  "name": "@figloom/contracts",
+  "version": "0.0.1",
+  "description": "Versioned contracts, artifacts, and dashboard event types for Figloom.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hungify/figloom.git",
+    "directory": "packages/contracts"
+  },
+  "homepage": "https://github.com/hungify/figloom/tree/main/packages/contracts",
+  "bugs": {
+    "url": "https://github.com/hungify/figloom/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.1",
+    "typescript": "6.0.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "packageManager": "pnpm@11.18.0"
+}
