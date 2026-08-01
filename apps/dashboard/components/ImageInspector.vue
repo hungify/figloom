@@ -30,7 +30,13 @@ const ready = computed(() => Boolean(props.contract.baseline && props.contract.a
 
 const viewportEl = ref<HTMLElement | null>(null);
 const contentSize = reactive({ width: 0, height: 0 });
-const fitted = ref(false);
+type EvidenceKind = 'baseline' | 'actual' | 'diff';
+const naturalSizes = reactive<Record<EvidenceKind, CanvasSize>>({
+  baseline: { width: 0, height: 0 },
+  actual: { width: 0, height: 0 },
+  diff: { width: 0, height: 0 },
+});
+const autoFit = ref(true);
 const { view, MIN_ZOOM, MAX_ZOOM, fitToView, centerAt, zoomAt, pan } = useCanvasView();
 
 function containerSize(): CanvasSize {
@@ -45,43 +51,72 @@ function fitToViewport(): void {
   const container = containerSize();
   if (!container.width || !container.height) return;
   fitToView(container, contentSize);
-  fitted.value = true;
+  autoFit.value = true;
 }
 
 function zoomTo100(): void {
   if (!contentSize.width || !contentSize.height) return;
   centerAt(containerSize(), contentSize, 1);
+  autoFit.value = false;
 }
 
-function measureFromEvidence(): boolean {
-  const width = Math.max(props.contract.baseline?.width ?? 0, props.contract.actual?.width ?? 0);
-  const height = Math.max(props.contract.baseline?.height ?? 0, props.contract.actual?.height ?? 0);
+function evidenceSize(kind: EvidenceKind): CanvasSize {
+  const evidence = props.contract[kind];
+  return {
+    width: evidence?.width ?? naturalSizes[kind].width,
+    height: evidence?.height ?? naturalSizes[kind].height,
+  };
+}
+
+function measureContent(): boolean {
+  const baseline = evidenceSize('baseline');
+  const actual = evidenceSize('actual');
+  const width = Math.max(baseline.width, actual.width);
+  const height = Math.max(baseline.height, actual.height);
   if (!width || !height) return false;
   contentSize.width = width;
   contentSize.height = height;
   return true;
 }
 
-function onImageLoad(event: Event): void {
-  if (!contentSize.width || !contentSize.height) {
-    const img = event.target as HTMLImageElement;
-    contentSize.width = img.naturalWidth;
-    contentSize.height = img.naturalHeight;
-  }
-  if (fitted.value) return;
-  fitToViewport();
+function imageStyle(kind: EvidenceKind): Record<string, string | undefined> {
+  const size = evidenceSize(kind);
+  return {
+    width: size.width ? `${size.width}px` : undefined,
+    height: size.height ? `${size.height}px` : undefined,
+  };
+}
+
+function onImageLoad(event: Event, kind: EvidenceKind): void {
+  const img = event.target as HTMLImageElement;
+  naturalSizes[kind].width = img.naturalWidth;
+  naturalSizes[kind].height = img.naturalHeight;
+  if (measureContent() && autoFit.value) fitToViewport();
 }
 
 watch(
-  () => props.contract.id,
+  () => [
+    props.contract.id,
+    props.contract.baseline?.path,
+    props.contract.baseline?.width,
+    props.contract.baseline?.height,
+    props.contract.actual?.path,
+    props.contract.actual?.width,
+    props.contract.actual?.height,
+    props.contract.diff?.path,
+  ],
   () => {
     contentSize.width = 0;
     contentSize.height = 0;
-    fitted.value = false;
+    for (const size of Object.values(naturalSizes)) {
+      size.width = 0;
+      size.height = 0;
+    }
+    autoFit.value = true;
     reveal.value = 50;
     opacity.value = 55;
     void nextTick(() => {
-      if (measureFromEvidence()) fitToViewport();
+      if (measureContent()) fitToViewport();
     });
   },
   { immediate: true },
@@ -96,9 +131,9 @@ watch(viewportEl, (el) => {
   resizeObserver?.disconnect();
   resizeObserver = null;
   if (!el) return;
-  if (!fitted.value) fitToViewport();
+  if (autoFit.value) fitToViewport();
   resizeObserver = new ResizeObserver(() => {
-    if (!fitted.value) fitToViewport();
+    if (autoFit.value) fitToViewport();
   });
   resizeObserver.observe(el);
 });
@@ -116,6 +151,7 @@ const zoomStepFactor = 1.2;
 function stepZoom(factor: number): void {
   const size = containerSize();
   zoomAt(factor, size.width / 2, size.height / 2);
+  autoFit.value = false;
 }
 
 function onWheel(event: WheelEvent): void {
@@ -131,6 +167,7 @@ function onWheel(event: WheelEvent): void {
   } else {
     pan(event.deltaX, event.deltaY);
   }
+  autoFit.value = false;
 }
 
 interface DragState {
@@ -158,6 +195,7 @@ function movePan(event: PointerEvent): void {
   if (!drag || drag.pointerId !== event.pointerId) return;
   view.tx = drag.originTx + (event.clientX - drag.startX);
   view.ty = drag.originTy + (event.clientY - drag.startY);
+  autoFit.value = false;
 }
 function endPan(event: PointerEvent): void {
   if (dragState.value?.pointerId === event.pointerId) dragState.value = null;
@@ -219,13 +257,13 @@ onBeforeUnmount(() => {
         <div class="absolute top-0 bottom-0 left-0 w-1/2 overflow-hidden border-r border-line">
           <span class="absolute top-2.5 left-2.5 z-[1] px-2 py-[3px] rounded-[4px] bg-[rgb(17_19_21_/_82%)] text-muted font-semibold text-[0.68rem] leading-none font-mono pointer-events-none">Baseline</span>
           <div class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
-            <img class="block w-full h-full object-fill select-none [-webkit-user-drag:none]" :src="baselineUrl" alt="Baseline capture" draggable="false" @load="onImageLoad" />
+            <img class="block max-w-none select-none [-webkit-user-drag:none]" :style="imageStyle('baseline')" :src="baselineUrl" alt="Baseline capture" draggable="false" @load="onImageLoad($event, 'baseline')" />
           </div>
         </div>
         <div class="absolute top-0 bottom-0 left-1/2 w-1/2 overflow-hidden">
           <span class="absolute top-2.5 left-2.5 z-[1] px-2 py-[3px] rounded-[4px] bg-[rgb(17_19_21_/_82%)] text-muted font-semibold text-[0.68rem] leading-none font-mono pointer-events-none">Actual</span>
           <div class="absolute top-0 left-0 bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_20px_48px_rgb(0_0_0_/_45%)]" :style="contentStyle">
-            <img class="block w-full h-full object-fill select-none [-webkit-user-drag:none]" :src="actualUrl" alt="Actual capture" draggable="false" @load="onImageLoad" />
+            <img class="block max-w-none select-none [-webkit-user-drag:none]" :style="imageStyle('actual')" :src="actualUrl" alt="Actual capture" draggable="false" @load="onImageLoad($event, 'actual')" />
           </div>
         </div>
       </template>
@@ -239,31 +277,41 @@ onBeforeUnmount(() => {
           before-alt="Baseline capture"
           after-alt="Actual capture"
           :opacity="opacity"
-          @load="onImageLoad"
+          :canvas-width="contentSize.width"
+          :canvas-height="contentSize.height"
+          :before-width="evidenceSize('baseline').width"
+          :before-height="evidenceSize('baseline').height"
+          :after-width="evidenceSize('actual').width"
+          :after-height="evidenceSize('actual').height"
+          @before-load="onImageLoad($event, 'baseline')"
+          @after-load="onImageLoad($event, 'actual')"
         />
         <img
           v-else-if="mode === 'baseline'"
-          class="block w-full h-full object-fill select-none [-webkit-user-drag:none]"
+          class="block max-w-none select-none [-webkit-user-drag:none]"
+          :style="imageStyle('baseline')"
           :src="baselineUrl"
           alt="Baseline capture"
           draggable="false"
-          @load="onImageLoad"
+          @load="onImageLoad($event, 'baseline')"
         />
         <img
           v-else-if="mode === 'actual'"
-          class="block w-full h-full object-fill select-none [-webkit-user-drag:none]"
+          class="block max-w-none select-none [-webkit-user-drag:none]"
+          :style="imageStyle('actual')"
           :src="actualUrl"
           alt="Actual capture"
           draggable="false"
-          @load="onImageLoad"
+          @load="onImageLoad($event, 'actual')"
         />
         <img
           v-else-if="mode === 'diff' && diffUrl"
-          class="block w-full h-full object-fill select-none [-webkit-user-drag:none]"
+          class="block max-w-none select-none [-webkit-user-drag:none]"
+          :style="imageStyle('diff')"
           :src="diffUrl"
           alt="Visual difference heatmap"
           draggable="false"
-          @load="onImageLoad"
+          @load="onImageLoad($event, 'diff')"
         />
       </div>
 
@@ -278,64 +326,72 @@ onBeforeUnmount(() => {
       <p class="max-w-[420px] m-0 text-[0.8rem]">{{ contract.blockers[0]?.message ?? 'Capture has not completed.' }}</p>
     </div>
 
-    <div
+    <UFieldGroup
       v-if="ready"
       class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[3] flex items-center gap-0.5 p-1 border border-line rounded-lg bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] shadow-[0_10px_28px_rgb(0_0_0_/_40%)] max-[980px]:min-[761px]:max-w-[calc(100vw-580px)] max-[980px]:min-[761px]:overflow-x-auto max-[760px]:bottom-3 max-[760px]:max-w-[calc(100vw-24px)] max-[760px]:overflow-x-auto"
       role="tablist"
       aria-label="Comparison mode"
     >
-      <button
+      <UButton
         v-for="item in modes"
         :key="item.value"
-        type="button"
         role="tab"
         :aria-selected="mode === item.value"
-        class="min-h-[30px] px-[11px] py-[5px] border-0 rounded-[5px] text-[0.78rem] cursor-pointer"
-        :class="mode === item.value ? 'text-[#11151a] bg-accent hover:bg-accent' : 'bg-transparent text-muted hover:text-text hover:bg-[var(--ui-bg-accented)]'"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        class="min-h-[30px] px-[11px]! py-[5px]! border-0 rounded-[5px]! text-[0.78rem] cursor-pointer"
+        :class="mode === item.value ? 'text-[#11151a]! bg-accent! hover:bg-accent!' : 'bg-transparent! text-muted! hover:text-text! hover:bg-[var(--ui-bg-accented)]!'"
         @click="mode = item.value"
       >
         {{ item.label }}
-      </button>
+      </UButton>
       <template v-if="mode === 'overlay'">
         <span class="w-px h-5 mx-1 bg-line" aria-hidden="true" />
         <label class="flex items-center gap-1.5 pl-0.5 pr-1.5 text-muted text-xs">
           <span>Opacity</span>
-          <input v-model.number="opacity" class="w-[90px] accent-accent" type="range" min="0" max="100" />
+          <USlider v-model="opacity" class="w-[90px]" :min="0" :max="100" color="primary" size="xs" aria-label="Opacity" />
           <output class="min-w-8 text-right text-[#b9bdc2] text-[0.72rem]">{{ opacity }}%</output>
         </label>
       </template>
-    </div>
+    </UFieldGroup>
 
-    <div v-if="ready" class="absolute bottom-4 left-4 z-[3] flex items-center gap-0.5 p-1 border border-line rounded-lg bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] shadow-[0_10px_28px_rgb(0_0_0_/_40%)] max-[760px]:hidden">
-      <button
-        type="button"
-        class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text enabled:hover:bg-[#25292e] disabled:opacity-[.35] disabled:cursor-default"
+    <UFieldGroup v-if="ready" class="absolute bottom-4 left-4 z-[3] flex items-center gap-0.5 p-1 border border-line rounded-lg bg-[rgb(23_25_28_/_92%)] backdrop-blur-[14px] shadow-[0_10px_28px_rgb(0_0_0_/_40%)] max-[760px]:hidden">
+      <UButton
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        class="min-h-7 px-[9px]! py-1! border-0 rounded-[5px]! bg-transparent! text-muted! font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text! enabled:hover:bg-[#25292e]! disabled:opacity-[.35] disabled:cursor-default"
         aria-label="Zoom out"
         :disabled="zoomPercent <= MIN_ZOOM * 100"
         @click="stepZoom(1 / zoomStepFactor)"
       >
         −
-      </button>
-      <button
-        type="button"
-        class="min-h-7 min-w-[46px] px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text enabled:hover:bg-[#25292e]"
+      </UButton>
+      <UButton
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        class="min-h-7 min-w-[46px] px-[9px]! py-1! border-0 rounded-[5px]! bg-transparent! text-muted! font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text! enabled:hover:bg-[#25292e]!"
         title="Fit to view"
         @click="fitToViewport"
       >
         {{ zoomPercent }}%
-      </button>
-      <button
-        type="button"
-        class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text enabled:hover:bg-[#25292e] disabled:opacity-[.35] disabled:cursor-default"
+      </UButton>
+      <UButton
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        class="min-h-7 px-[9px]! py-1! border-0 rounded-[5px]! bg-transparent! text-muted! font-medium text-[0.74rem] leading-none font-mono cursor-pointer enabled:hover:text-text! enabled:hover:bg-[#25292e]! disabled:opacity-[.35] disabled:cursor-default"
         aria-label="Zoom in"
         :disabled="zoomPercent >= MAX_ZOOM * 100"
         @click="stepZoom(zoomStepFactor)"
       >
         +
-      </button>
+      </UButton>
       <span class="w-px h-[18px] mx-0.5 bg-line" aria-hidden="true" />
-      <button type="button" class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer hover:text-text hover:bg-[#25292e]" @click="zoomTo100">100%</button>
-      <button type="button" class="min-h-7 px-[9px] py-1 border-0 rounded-[5px] bg-transparent text-muted font-medium text-[0.74rem] leading-none font-mono cursor-pointer hover:text-text hover:bg-[#25292e]" @click="fitToViewport">Fit</button>
-    </div>
+      <UButton color="neutral" variant="ghost" size="xs" class="min-h-7 px-[9px]! py-1! border-0 rounded-[5px]! bg-transparent! text-muted! font-medium text-[0.74rem] leading-none font-mono cursor-pointer hover:text-text! hover:bg-[#25292e]!" @click="zoomTo100">100%</UButton>
+      <UButton color="neutral" variant="ghost" size="xs" class="min-h-7 px-[9px]! py-1! border-0 rounded-[5px]! bg-transparent! text-muted! font-medium text-[0.74rem] leading-none font-mono cursor-pointer hover:text-text! hover:bg-[#25292e]!" @click="fitToViewport">Fit</UButton>
+    </UFieldGroup>
   </section>
 </template>

@@ -1,23 +1,44 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   beforeSrc: string;
   afterSrc: string;
   beforeAlt?: string;
   afterAlt?: string;
   opacity?: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  beforeWidth: number;
+  beforeHeight: number;
+  afterWidth: number;
+  afterHeight: number;
 }>(), {
   beforeAlt: 'Before image',
   afterAlt: 'After image',
   opacity: 100,
 });
 
-const emit = defineEmits<{ load: [Event] }>();
+const emit = defineEmits<{ beforeLoad: [Event]; afterLoad: [Event] }>();
 
 const reveal = defineModel<number>({ default: 50 });
 const root = ref<HTMLElement | null>(null);
 const activePointer = ref<number | null>(null);
+
+const canvasStyle = computed(() => ({
+  width: props.canvasWidth ? `${props.canvasWidth}px` : undefined,
+  height: props.canvasHeight ? `${props.canvasHeight}px` : undefined,
+}));
+const beforeStyle = computed(() => ({
+  width: props.beforeWidth ? `${props.beforeWidth}px` : undefined,
+  height: props.beforeHeight ? `${props.beforeHeight}px` : undefined,
+}));
+const afterStyle = computed(() => ({
+  width: props.afterWidth ? `${props.afterWidth}px` : undefined,
+  height: props.afterHeight ? `${props.afterHeight}px` : undefined,
+  clipPath: `inset(0 ${Math.max(0, props.afterWidth - (props.canvasWidth * reveal.value) / 100)}px 0 0)`,
+  opacity: props.opacity / 100,
+}));
 
 function updateReveal(clientX: number) {
   const bounds = root.value?.getBoundingClientRect();
@@ -52,24 +73,22 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div ref="root" class="relative flex-none bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_10px_28px_rgb(0_0_0_/_24%)]">
+  <div ref="root" class="relative flex-none bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_10px_28px_rgb(0_0_0_/_24%)]" :style="canvasStyle">
     <img
-      class="block max-w-none select-none [-webkit-user-drag:none]"
+      class="absolute inset-0 block max-w-none select-none [-webkit-user-drag:none]"
       :src="beforeSrc"
       :alt="beforeAlt"
+      :style="beforeStyle"
       draggable="false"
-      @load="emit('load', $event)"
+      @load="emit('beforeLoad', $event)"
     />
     <img
       class="block max-w-none select-none [-webkit-user-drag:none] absolute inset-0"
       :src="afterSrc"
       :alt="afterAlt"
-      :style="{
-        clipPath: `inset(0 ${100 - reveal}% 0 0)`,
-        opacity: opacity / 100,
-      }"
+      :style="afterStyle"
       draggable="false"
-      @load="emit('load', $event)"
+      @load="emit('afterLoad', $event)"
     />
     <div
       class="absolute -top-2 -bottom-2 w-6 -ml-3 cursor-ew-resize touch-none before:content-[''] before:absolute before:inset-y-0 before:left-1/2 before:bg-accent before:-translate-x-1/2 hover:before:w-0.5 focus-visible:before:w-0.5 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
