@@ -5,6 +5,7 @@ import type { DashboardContractResult, DashboardVerdict } from '@figloom/contrac
 import ImageInspector from '../components/ImageInspector.vue';
 import StatusBadge from '../components/StatusBadge.vue';
 import { useRunArtifact } from '../data-source';
+import { isTypingTarget } from '../lib/dom';
 
 const route = useRoute();
 const router = useRouter();
@@ -36,8 +37,11 @@ function selectContract(contract: DashboardContractResult) {
   router.push({ name: '/contracts/[...id]', params: { id: contract.id } });
 }
 
-function formatRatio(value: number | null | undefined) {
-  return value == null ? '—' : `${(value * 100).toFixed(value < 0.001 ? 4 : 2)}%`;
+function formatRatio(value: number | null | undefined): string {
+  if (value == null) return '—';
+  const percent = value * 100;
+  if (percent > 0 && percent < 0.01) return '<0.01%';
+  return `${percent.toFixed(2)}%`;
 }
 
 function moveSelection(direction: number) {
@@ -48,6 +52,7 @@ function moveSelection(direction: number) {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  if (isTypingTarget(event.target)) return;
   if (!event.altKey) return;
   if (event.key === 'ArrowRight') moveSelection(1);
   if (event.key === 'ArrowLeft') moveSelection(-1);
@@ -86,92 +91,94 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
     </main>
 
     <main v-else-if="run" class="workspace">
-      <section class="contract-rail">
-        <header>
-          <div>
-            <strong>Contracts</strong>
-            <span>{{ contracts.length }} of {{ run.summary.total }}</span>
-          </div>
-          <StatusBadge :status="run.status" />
-        </header>
-        <div class="run-summary" aria-label="Contract status totals">
-          <span>{{ run.summary.passed }} passed</span>
-          <span v-if="run.summary.failed">{{ run.summary.failed }} failed</span>
-          <span v-if="run.summary.blocked">{{ run.summary.blocked }} blocked</span>
-          <span v-if="run.summary.running">{{ run.summary.running }} running</span>
-        </div>
-        <div class="contract-filters">
-          <UInput
-            v-model="query"
-            class="search-field"
-            type="search"
-            color="neutral"
-            variant="outline"
-            size="sm"
-            aria-label="Search contracts"
-            placeholder="Search contracts"
-          />
-          <USelect
-            v-model="status"
-            class="status-filter"
-            :items="statusOptions"
-            color="neutral"
-            variant="outline"
-            size="sm"
-            aria-label="Filter by status"
-          />
-        </div>
-        <div class="contract-list">
-          <UButton
-            v-for="contract in contracts"
-            :key="contract.id"
-            :class="{ selected: selected?.id === contract.id }"
-            color="neutral"
-            variant="ghost"
-            :ui="{ label: 'contents' }"
-            @click="selectContract(contract)"
-          >
-            <span class="contract-status" :data-status="contract.status" />
-            <span class="contract-copy">
-              <strong>{{ contract.name }}</strong>
-              <code>{{ contract.id }}</code>
-            </span>
-            <span class="contract-metric">{{ formatRatio(contract.comparison?.diffRatio) }}</span>
-          </UButton>
-          <div v-if="contracts.length === 0" class="list-empty">No contracts match current filter.</div>
-        </div>
-      </section>
+      <ImageInspector v-if="selected" :contract="selected" :artifact-url="artifactUrl" class="workspace-canvas" />
+      <div v-else class="workspace-canvas workspace-empty">No contract selected.</div>
 
-      <section v-if="selected" class="detail-panel">
-        <header class="detail-header">
-          <div>
+      <aside class="panel panel-layers">
+        <div class="panel-body">
+          <header>
+            <div>
+              <strong>Contracts</strong>
+              <span>{{ contracts.length }} of {{ run.summary.total }}</span>
+            </div>
+            <StatusBadge :status="run.status" />
+          </header>
+          <div class="run-summary" aria-label="Contract status totals">
+            <span>{{ run.summary.passed }} passed</span>
+            <span v-if="run.summary.failed">{{ run.summary.failed }} failed</span>
+            <span v-if="run.summary.blocked">{{ run.summary.blocked }} blocked</span>
+            <span v-if="run.summary.running">{{ run.summary.running }} running</span>
+          </div>
+          <div class="contract-filters">
+            <UInput
+              v-model="query"
+              class="search-field"
+              type="search"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              aria-label="Search contracts"
+              placeholder="Search contracts"
+            />
+            <USelect
+              v-model="status"
+              class="status-filter"
+              :items="statusOptions"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              aria-label="Filter by status"
+            />
+          </div>
+          <div class="contract-list">
+            <UButton
+              v-for="contract in contracts"
+              :key="contract.id"
+              :class="{ selected: selected?.id === contract.id }"
+              color="neutral"
+              variant="ghost"
+              :ui="{ label: 'contents' }"
+              @click="selectContract(contract)"
+            >
+              <span class="contract-status" :data-status="contract.status" />
+              <span class="contract-copy">
+                <strong>{{ contract.name }}</strong>
+                <code>{{ contract.id }}</code>
+              </span>
+              <span class="contract-metric">{{ formatRatio(contract.comparison?.diffRatio) }}</span>
+            </UButton>
+            <div v-if="contracts.length === 0" class="list-empty">No contracts match current filter.</div>
+          </div>
+        </div>
+      </aside>
+
+      <aside v-if="selected" class="panel panel-details">
+        <div class="panel-body">
+          <header>
             <div class="detail-title-row">
               <h1>{{ selected.name }}</h1>
               <StatusBadge :status="selected.status" />
             </div>
             <code>{{ selected.id }}</code>
-          </div>
+          </header>
           <dl>
             <div><dt>Diff ratio</dt><dd>{{ formatRatio(selected.comparison?.diffRatio) }}</dd></div>
             <div><dt>Pixels</dt><dd>{{ selected.comparison?.diffPixels?.toLocaleString() ?? '—' }}</dd></div>
             <div><dt>Viewport</dt><dd>{{ selected.capture.viewport.width }}×{{ selected.capture.viewport.height }}</dd></div>
             <div><dt>Baseline</dt><dd>{{ selected.baselineKind }}</dd></div>
           </dl>
-        </header>
-
-        <ImageInspector :contract="selected" :artifact-url="artifactUrl" />
-
-        <footer v-if="selected.baseline?.provenance || selected.evidenceHash" class="evidence-strip">
-          <div v-if="selected.baseline?.provenance">
-            <span>Baseline provenance</span>
-            <code>{{ selected.baseline.provenance }}</code>
+          <div v-if="selected.baseline?.provenance || selected.evidenceHash" class="evidence-strip">
+            <div v-if="selected.baseline?.provenance">
+              <span>Baseline provenance</span>
+              <code>{{ selected.baseline.provenance }}</code>
+            </div>
+            <div v-if="selected.evidenceHash">
+              <span>Evidence hash</span>
+              <code>{{ selected.evidenceHash }}</code>
+            </div>
           </div>
-          <div v-if="selected.evidenceHash">
-            <span>Evidence hash</span>
-            <code>{{ selected.evidenceHash }}</code>
-          </div>
-        </footer>
-      </section>
+        </div>
+      </aside>
     </main>
   </div>
 </template>
