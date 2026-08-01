@@ -58,15 +58,37 @@ describe("published CLI", () => {
   });
 
   it.each([
-    ["compare", ["--gold", "missing.png", "--actual", "missing.png", "--profile", "audit"]],
-    ["run", [...runArguments, "--run-type", "audit"]],
-  ])("rejects invalid %s enum flags at usage boundary", (command, args) => {
+    ["contract", [], ["schemaVersion", "target", "contracts"]],
+    ["artifact", ["--target", "artifact"], ["schemaVersion", "kind", "request", "results"]],
+  ])("prints the live %s JSON Schema", (_target, args, expectedProperties) => {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(packageRoot, "bin", "figloom.js"), "schema", ...args],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const schema = JSON.parse(result.stdout) as {
+      type?: string;
+      properties?: Record<string, unknown>;
+    };
+    expect(schema.type).toBe("object");
+    expect(Object.keys(schema.properties ?? {})).toEqual(expect.arrayContaining(expectedProperties));
+  });
+
+  it.each([
+    ["compare", ["--gold", "missing.png", "--actual", "missing.png", "--profile", "audit"], undefined],
+    ["run", [...runArguments, "--run-type", "audit"], undefined],
+    ["schema", ["--target", "request"], "must be \"contract\" or \"artifact\""],
+  ])("rejects invalid %s enum flags at usage boundary", (command, args, expectedMessage) => {
     const result = spawnSync(
       process.execPath,
       [path.join(packageRoot, "bin", "figloom.js"), command, ...args],
       { encoding: "utf8" },
     );
     expect(result.status).toBe(2);
+    if (expectedMessage) expect(result.stderr).toContain(expectedMessage);
     expect(result.stderr).toContain("Usage:");
   });
 
