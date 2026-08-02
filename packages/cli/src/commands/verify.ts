@@ -6,6 +6,7 @@ import type { Command } from "commander";
 import openBrowser from "open";
 
 import { verificationRequestSchema } from "@figloom/contracts";
+import { loadFigloomConfig } from "../config.ts";
 import {
   EXIT_OK,
   EXIT_USAGE_ERROR,
@@ -49,6 +50,7 @@ async function verifyCommand(options: VerifyOptions): Promise<void> {
   }
 
   const projectRoot = path.resolve(options.projectRoot ?? process.cwd());
+  const config = await loadFigloomConfig(projectRoot);
   const suiteName = path.basename(path.dirname(path.resolve(options.output)));
   const dashboardStore = options.ui ? new LiveDashboardStore(request, new Date(), suiteName) : undefined;
   let dashboardServer: DashboardServer | undefined;
@@ -67,6 +69,7 @@ async function verifyCommand(options: VerifyOptions): Promise<void> {
   try {
     const artifact = await verify(request, {
       projectRoot,
+      storageStatePath: config.resolvedStorageStatePath,
       onProgress: ({ index, total, id, phase }) => {
         console.error(`[${index + 1}/${total}] ${id}: ${phase}`);
         dashboardStore?.progress(id, phase);

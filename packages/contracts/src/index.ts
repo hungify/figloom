@@ -62,6 +62,9 @@ export const webTargetSchema = z
   .object({
     kind: z.literal("web"),
     url: httpUrlSchema,
+    expectedUrl: httpUrlSchema.optional(),
+    readySelector: z.string().trim().min(1).optional(),
+    auth: z.enum(["none", "storageState"]).optional(),
   })
   .strict();
 
