@@ -26,6 +26,9 @@ const NO_ANIMATION_CSS = `
 
 export interface CaptureOptions {
   url: string;
+  expectedUrl?: string;
+  readySelector?: string;
+  storageStatePath?: string;
   outPath: string;
   viewportSize: { width: number; height: number };
   selector?: string;
@@ -53,6 +56,15 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
   const timeoutMs = options.timeoutMs ?? DEFAULT_CAPTURE_TIMEOUT_MS;
   const warnings: string[] = [];
 
+  if (options.storageStatePath && !fs.existsSync(options.storageStatePath)) {
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      ok: false,
+      error: "STORAGE_STATE_NOT_FOUND",
+      message: `Playwright storage state not found: ${options.storageStatePath}.`,
+    };
+  }
+
   fs.mkdirSync(path.dirname(options.outPath), { recursive: true });
 
   let browser: Browser | null = null;
@@ -63,6 +75,7 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
     const page = await browser.newPage({
       viewport: options.viewportSize,
       deviceScaleFactor: DEVICE_SCALE_FACTOR,
+      ...(options.storageStatePath ? { storageState: options.storageStatePath } : {}),
     });
 
     await page.goto(options.url, { waitUntil: "load", timeout: timeoutMs });
@@ -80,6 +93,8 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
       options.hideDevtoolsChrome ?? false,
       options.devtoolsMarker ?? "TANSTACK",
     );
+    const targetReject = await validateTarget(page, options);
+    if (targetReject) return targetReject;
 
     if (options.selector) {
       const reject = await resolveSelector(page, options.selector);
@@ -124,6 +139,8 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
           options.hideDevtoolsChrome ?? false,
           options.devtoolsMarker ?? "TANSTACK",
         );
+        const sampleTargetReject = await validateTarget(page, options);
+        if (sampleTargetReject) return sampleTargetReject;
       }
 
       if (options.selector) {
@@ -170,6 +187,50 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
   } finally {
     await browser?.close();
   }
+}
+
+async function validateTarget(page: Page, options: CaptureOptions): Promise<RejectResult | null> {
+  if (options.expectedUrl) {
+    const actual = new URL(page.url()).href;
+    const expected = new URL(options.expectedUrl).href;
+    if (actual !== expected) {
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        ok: false,
+        error: "TARGET_URL_MISMATCH",
+        message: `Playwright reached ${actual}; expected ${expected}. Check auth state, redirects, and feature flags.`,
+      };
+    }
+  }
+
+  if (options.readySelector) {
+    const locator = page.locator(options.readySelector);
+    try {
+      await locator.first().waitFor({
+        state: "visible",
+        timeout: options.timeoutMs ?? DEFAULT_CAPTURE_TIMEOUT_MS,
+      });
+    } catch {
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        ok: false,
+        error: "READY_SELECTOR_NOT_FOUND",
+        message: `Screen readiness selector did not become visible: ${options.readySelector}.`,
+      };
+    }
+    const matchCount = await locator.count();
+    if (matchCount !== 1) {
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        ok: false,
+        error: "READY_SELECTOR_AMBIGUOUS",
+        message: `Screen readiness selector matched ${matchCount} elements; provide a unique selector.`,
+        matchCount,
+      };
+    }
+  }
+
+  return null;
 }
 
 async function readComputedTextStyle(loc: ReturnType<Page["locator"]>): Promise<ComputedTextStyle> {

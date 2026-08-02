@@ -123,6 +123,9 @@ export async function runVerification(
     (runType === "final" ? DEFAULT_STABILITY_SAMPLES_FINAL : DEFAULT_STABILITY_SAMPLES_DEV);
   const captured = await (dependencies.captureImpl ?? capture)({
     url: options.target.url,
+    expectedUrl: options.target.expectedUrl,
+    readySelector: options.target.readySelector,
+    storageStatePath: options.storageStatePath,
     outPath: actualPath,
     viewportSize: options.viewportSize,
     selector: options.selector,

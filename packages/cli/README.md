@@ -88,9 +88,7 @@ Figloom does not start applications. Start required servers before verification.
 
 ## Install
 
-Package is not published yet. During repository development, run from repository root with `pnpm figloom`, or install workspace package `packages/cli` into a test project.
-
-After first npm release:
+Install published CLI:
 
 ```bash
 npm install --save-dev figloom-verify
@@ -98,13 +96,21 @@ npx playwright install chromium
 npx figloom status --project-root "$PWD"
 ```
 
-Create an initial schema-v4 contract interactively:
+Initialize Figloom in the application project:
 
 ```bash
 npx figloom init
 ```
 
-By default this writes `.figloom/visual-contract.json`. Use `--output <path>` to choose another location. Existing files require explicit `--force`.
+This writes `figloom.config.ts` with an optional, commented `storageStatePath` example for `.figloom/auth/user.json`, and creates a nested `.gitignore` so browser session credentials cannot be committed accidentally. Enable the option only for authenticated screens. Project initialization does not ask about Figma, routes, selectors, or individual screens.
+
+Create a visual contract only when mapping a screen or component:
+
+```bash
+npx figloom contract create
+```
+
+This separate wizard asks for target route, readiness selector, baseline source, viewport, and capture scope. By default it writes `.figloom/artifacts/visual-verifications/<feature>/visual-contract.json`, where `<feature>` is the first segment of the contract ID. Use `--output <path>` to choose another location. Existing files require explicit `--force`.
 
 Set Figma token only when using Figma baselines:
 
@@ -123,7 +129,10 @@ Store contracts and outputs under `.figloom/artifacts/visual-verifications/`.
   "schemaVersion": 4,
   "target": {
     "kind": "web",
-    "url": "http://127.0.0.1:3000/login"
+    "url": "http://127.0.0.1:3000/login",
+    "expectedUrl": "http://127.0.0.1:3000/login",
+    "readySelector": "[data-testid='login-ready']",
+    "auth": "none"
   },
   "contracts": [
     {
@@ -145,6 +154,30 @@ Store contracts and outputs under `.figloom/artifacts/visual-verifications/`.
 ```
 
 Every run fetches fresh Figma evidence. Retryable Figma API failure never silently reuses cached gold.
+
+### Playwright target navigation
+
+The Figma node supplies baseline pixels; it does not identify a code route. `target.url` is the exact screen Playwright opens. `expectedUrl` blocks captures after an unexpected redirect, and `readySelector` delays capture until the intended screen is visibly ready.
+
+Authenticated screens may provide a project-relative Playwright storage-state file in `figloom.config.ts`:
+
+```ts
+import { defineConfig } from "figloom-verify";
+
+export default defineConfig({
+  storageStatePath: ".figloom/auth/user.json",
+});
+```
+
+Record that state through a headed Playwright browser:
+
+```bash
+npx figloom auth --url http://127.0.0.1:3000/login
+```
+
+Complete login in the opened browser, return to the terminal, then confirm. Figloom saves cookies and local storage without reading credentials. Protected contracts opt in with `"auth": "storageState"`; login and public contracts use `"auth": "none"`. This prevents an existing session from redirecting a login-page capture to a protected page.
+
+The path resolves from the project root. Keep `.figloom/auth/` out of Git because storage state contains session credentials. Playwright applies storage state before navigation, opens the target URL, verifies the final URL, waits for the readiness marker, then captures either the full page or the unique region selector. The same checks run again for every stability sample. Complex data or feature-flag states should remain addressable through deterministic app fixture URLs rather than click timing.
 
 ### Web vs web regression
 
@@ -264,6 +297,9 @@ web-baseline.meta.json
 
 | Command | Purpose |
 | --- | --- |
+| `figloom init` | Initialize project config and ignored auth-state directory. |
+| `figloom auth` | Record Playwright storage state through a headed login browser. |
+| `figloom contract create` | Interactively create one feature-scoped visual contract. |
 | `figloom status` | Show CLI version, project root, and optional Figma token availability. |
 | `figloom verify` | Resolve Figma or web baseline, capture web target, compare, and write batch artifact. |
 | `figloom open` | Open archived artifact in dashboard without rerunning. |
@@ -318,6 +354,8 @@ Upload `.figloom/artifacts/visual-verifications/` as CI artifact on failure.
 
 - Figma auth failure: run `figloom status`; confirm token access to file.
 - Chromium missing: run `npx playwright install chromium`.
+- Protected target redirects to login: rerun `figloom auth`, then confirm contract uses `"auth": "storageState"`.
+- Login target redirects away: set contract target to `"auth": "none"`.
 - URL unreachable: start app and test URL from same environment.
 - Selector failure: use deterministic unique selector such as `data-testid`.
 - Unstable result: check fonts, timers, random data, API responses, animations, browser, viewport.
@@ -326,6 +364,7 @@ Upload `.figloom/artifacts/visual-verifications/` as CI artifact on failure.
 ## Security and artifacts
 
 - Keep `FIGMA_ACCESS_TOKEN` in ignored environment files or CI secrets.
+- Treat Playwright storage state as a session credential; keep `.figloom/auth/` ignored and never upload it as an artifact.
 - Never commit tokens or place them in contracts.
 - Treat web screenshots and Figma metadata as potentially sensitive.
 - Apply repository retention rules before sharing generated evidence.

@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION } from "@figloom/contracts";
+import { SCHEMA_VERSION, type WebTarget } from "@figloom/contracts";
 
 export { SCHEMA_VERSION };
 
@@ -36,6 +36,11 @@ export type FidelityErrorCode =
   | "BASELINE_NOT_FOUND"
   | "BASELINE_PATH_INVALID"
   | "BASELINE_SOURCE_MISMATCH"
+  | "STORAGE_STATE_NOT_CONFIGURED"
+  | "STORAGE_STATE_NOT_FOUND"
+  | "TARGET_URL_MISMATCH"
+  | "READY_SELECTOR_NOT_FOUND"
+  | "READY_SELECTOR_AMBIGUOUS"
   | "SELECTOR_NOT_FOUND"
   | "SELECTOR_AMBIGUOUS";
 
@@ -126,7 +131,7 @@ export interface RunResult {
   viewport: string;
   profile: ProfileName;
   pageReason: string | null;
-  target: { kind: "web"; url: string };
+  target: WebTarget;
   selector: string | null;
   expectSize: ExpectSize | null;
   baseline: BaselineEvidence;
@@ -210,7 +215,8 @@ export interface ResolvedBaseline {
 }
 
 export interface VerificationRunOptions {
-  target: { kind: "web"; url: string };
+  target: WebTarget;
+  storageStatePath?: string;
   baseline: ResolvedBaseline;
   selector?: string;
   viewport: string;

@@ -73,7 +73,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div ref="root" class="relative flex-none bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_10px_28px_rgb(0_0_0_/_24%)]" :style="canvasStyle">
+  <div ref="root" class="relative flex-none overflow-hidden bg-[#f1f2f3] shadow-[0_0_0_1px_#353a40,0_10px_28px_rgb(0_0_0_/_24%)]" :style="canvasStyle">
     <img
       class="absolute inset-0 block max-w-none select-none [-webkit-user-drag:none]"
       :src="beforeSrc"
@@ -91,7 +91,7 @@ function onKeydown(event: KeyboardEvent) {
       @load="emit('afterLoad', $event)"
     />
     <div
-      class="absolute -top-2 -bottom-2 w-6 -ml-3 cursor-ew-resize touch-none before:content-[''] before:absolute before:inset-y-0 before:left-1/2 before:bg-accent before:-translate-x-1/2 hover:before:w-0.5 focus-visible:before:w-0.5 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+      class="absolute inset-y-0 w-6 -ml-3 cursor-ew-resize touch-none before:content-[''] before:absolute before:inset-y-0 before:left-1/2 before:bg-accent before:-translate-x-1/2 hover:before:w-0.5 focus-visible:before:w-0.5 focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
       :class="activePointer !== null ? 'before:w-0.5' : 'before:w-px'"
       :style="{ left: `${reveal}%` }"
       role="slider"

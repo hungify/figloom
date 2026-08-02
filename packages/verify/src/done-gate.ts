@@ -12,7 +12,7 @@ import {
   MS_PER_HOUR,
   MS_PER_MINUTE,
 } from "./constants.ts";
-import type { BaselineSource, WebTarget } from "@figloom/contracts";
+import { webTargetSchema, type BaselineSource, type WebTarget } from "@figloom/contracts";
 import { resolveArtifactPath } from "./paths.ts";
 import type { ExpectSize, ProfileName } from "./types.ts";
 import { SCHEMA_VERSION } from "./types.ts";
@@ -85,7 +85,7 @@ const ScoreFileSchema = z.object({
   pass: z.boolean(),
   runType: z.enum(["dev", "final"]),
   capturedAt: z.string(),
-  target: z.object({ kind: z.literal("web"), url: z.string() }),
+  target: webTargetSchema,
   baseline: BaselineEvidenceSchema,
   viewport: z.string(),
   profile: z.enum(["page", "component/strict", "component/dev"]),
@@ -107,7 +107,7 @@ type ScoreFile = z.infer<typeof ScoreFileSchema>;
 
 const RunMetaSchema = z.object({
   schemaVersion: z.number(),
-  target: z.object({ kind: z.literal("web"), url: z.string() }),
+  target: webTargetSchema,
   baseline: BaselineEvidenceSchema,
   viewport: z.string(),
   profile: z.string(),
@@ -283,8 +283,12 @@ function sameBaseline(evidence: ScoreFile["baseline"], source: BaselineSource): 
     : evidence.kind === "web" && evidence.url === source.url && evidence.revision === source.revision;
 }
 
-function sameTarget(actual: { kind: "web"; url: string }, expected: WebTarget): boolean {
-  return actual.kind === expected.kind && actual.url === expected.url;
+function sameTarget(actual: WebTarget, expected: WebTarget): boolean {
+  return actual.kind === expected.kind
+    && actual.url === expected.url
+    && actual.expectedUrl === expected.expectedUrl
+    && actual.readySelector === expected.readySelector
+    && actual.auth === expected.auth;
 }
 
 function baselineFileNames(kind: BaselineSource["kind"]): { image: string; meta: string } {

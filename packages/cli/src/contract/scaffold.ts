@@ -7,8 +7,11 @@ import {
   type VerificationRequest,
 } from "@figloom/contracts";
 
-export interface InitAnswers {
+export interface ContractAnswers {
   targetUrl: string;
+  expectedUrl?: string;
+  readySelector?: string;
+  auth?: "none" | "storageState";
   contractId: string;
   baseline:
     | { kind: "figma"; fileKey: string; nodeId: string }
@@ -19,11 +22,17 @@ export interface InitAnswers {
     | { kind: "region"; selector: string; expectSize: { width: number; height: number } };
 }
 
-export function createInitRequest(answers: InitAnswers): VerificationRequest {
+export function createContractRequest(answers: ContractAnswers): VerificationRequest {
   const outDirName = answers.contractId.replaceAll(".", "/");
   return verificationRequestSchema.parse({
     schemaVersion: SCHEMA_VERSION,
-    target: { kind: "web", url: answers.targetUrl },
+    target: {
+      kind: "web",
+      url: answers.targetUrl,
+      ...(answers.expectedUrl ? { expectedUrl: answers.expectedUrl } : {}),
+      ...(answers.readySelector ? { readySelector: answers.readySelector } : {}),
+      ...(answers.auth ? { auth: answers.auth } : {}),
+    },
     contracts: [
       {
         id: answers.contractId,
@@ -37,7 +46,7 @@ export function createInitRequest(answers: InitAnswers): VerificationRequest {
   });
 }
 
-export function writeInitRequest(
+export function writeContractRequest(
   outputPath: string,
   request: VerificationRequest,
   force = false,
