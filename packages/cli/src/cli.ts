@@ -4,6 +4,8 @@ import { Command, CommanderError } from "commander";
 
 import { EXIT_OK, EXIT_USAGE_ERROR, loadAncestorEnv } from "@figloom/verify";
 import { registerDashboardCommands } from "./commands/dashboard.ts";
+import { registerContractCommands } from "./commands/contract.ts";
+import { registerAuthCommand } from "./commands/auth.ts";
 import { registerDebugCommands } from "./commands/debug.ts";
 import { registerDoneGateCommand } from "./commands/done-gate.ts";
 import { registerInitCommand } from "./commands/init-command.ts";
@@ -42,6 +44,8 @@ export function createProgram(): Command {
   registerStatusCommand(program, PACKAGE_VERSION);
   registerSchemaCommand(program);
   registerInitCommand(program);
+  registerAuthCommand(program);
+  registerContractCommands(program);
   registerDebugCommands(program);
   registerRunCommand(program);
 

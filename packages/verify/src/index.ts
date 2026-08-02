@@ -1,5 +1,7 @@
 export { capture } from "./capture.ts";
 export type { CaptureOptions, CaptureOutcome, CaptureSuccess } from "./capture.ts";
+export { recordStorageState } from "./auth.ts";
+export type { RecordStorageStateOptions, RecordStorageStateResult } from "./auth.ts";
 export {
   createBaselineProvider,
   FigmaBaselineProvider,

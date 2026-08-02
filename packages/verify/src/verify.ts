@@ -17,6 +17,7 @@ import type {
 
 export interface VerifyOptions {
   projectRoot?: string;
+  storageStatePath?: string;
   now?: () => Date;
   onProgress?: (event: { index: number; total: number; id: string; phase: VerificationPhase }) => void;
   providerFor?: (source: VerificationContract["baseline"]) => BaselineProvider;
@@ -29,6 +30,10 @@ export async function verify(
 ): Promise<VerificationArtifact> {
   const request = verificationRequestSchema.parse(input);
   const projectRoot = path.resolve(options.projectRoot ?? process.cwd());
+  const storageStatePath = options.storageStatePath
+    ? path.resolve(options.storageStatePath)
+    : undefined;
+  const requiresStorageState = request.target.auth === "storageState";
   const results: VerificationArtifact["results"] = [];
 
   for (let index = 0; index < request.contracts.length; index += 1) {
@@ -36,6 +41,28 @@ export async function verify(
     const outDir = resolveArtifactPath(contract.outDir, projectRoot);
     invalidateRunArtifacts(outDir);
     try {
+      if (requiresStorageState && !storageStatePath) {
+        results.push({
+          id: contract.id,
+          ok: false,
+          pass: false,
+          error: "STORAGE_STATE_NOT_CONFIGURED",
+          message: "Target requires auth=storageState, but figloom.config.ts has no storageStatePath.",
+          outDir,
+        });
+        continue;
+      }
+      if (requiresStorageState && storageStatePath && !fs.existsSync(storageStatePath)) {
+        results.push({
+          id: contract.id,
+          ok: false,
+          pass: false,
+          error: "STORAGE_STATE_NOT_FOUND",
+          message: `Playwright storage state not found: ${storageStatePath}.`,
+          outDir,
+        });
+        continue;
+      }
       const profile = contract.scope.kind === "region" ? (contract.profile ?? "component/strict") : "page";
       const stabilitySamples = contract.stabilitySamples ?? DEFAULT_STABILITY_SAMPLES_FINAL;
       options.onProgress?.({ index, total: request.contracts.length, id: contract.id, phase: "baseline" });
@@ -73,6 +100,7 @@ export async function verify(
       options.onProgress?.({ index, total: request.contracts.length, id: contract.id, phase: "capture" });
       const result = await (options.runPipeline ?? runVerification)({
         target: request.target,
+        storageStatePath: requiresStorageState ? storageStatePath : undefined,
         baseline: resolved.baseline,
         viewport: contract.viewport.name,
         viewportSize: {

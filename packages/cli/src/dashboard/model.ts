@@ -74,7 +74,7 @@ function provenance(score: VisualScoreArtifact, contract: VerificationRequest["c
   return score.baseline?.url ?? (contract.baseline.kind === "web" ? contract.baseline.url : "Figma baseline");
 }
 
-export async function projectArtifact(artifact: VerificationArtifact): Promise<DashboardProjection> {
+export async function projectArtifact(artifact: VerificationArtifact, suiteName?: string): Promise<DashboardProjection> {
   const files: DashboardFileMap = new Map();
   const resultById = new Map(artifact.results.map((result) => [result.id, result]));
   const contracts = await Promise.all(artifact.request.contracts.map(async (contract): Promise<DashboardContractResult> => {
@@ -153,6 +153,7 @@ export async function projectArtifact(artifact: VerificationArtifact): Promise<D
     run: {
       schemaVersion: 1,
       runId: runIdFor(artifact),
+      ...(suiteName ? { suiteName } : {}),
       status: overallStatus(summary),
       summary,
       contracts,
@@ -169,7 +170,7 @@ export class LiveDashboardStore {
   #files: DashboardFileMap = new Map();
   #sequence = 0;
 
-  constructor(request: VerificationRequest, now = new Date()) {
+  constructor(request: VerificationRequest, now = new Date(), suiteName?: string) {
     const timestamp = now.toISOString();
     const contracts: DashboardContractResult[] = request.contracts.map((contract) => ({
       id: contract.id,
@@ -187,6 +188,7 @@ export class LiveDashboardStore {
     this.#run = {
       schemaVersion: 1,
       runId: crypto.randomUUID(),
+      ...(suiteName ? { suiteName } : {}),
       status: "queued",
       summary: summarize(contracts),
       contracts,
@@ -217,7 +219,7 @@ export class LiveDashboardStore {
   }
 
   async finish(artifact: VerificationArtifact): Promise<void> {
-    const projected = await projectArtifact(artifact);
+    const projected = await projectArtifact(artifact, this.#run.suiteName);
     this.#run.status = projected.run.status;
     this.#run.summary = projected.run.summary;
     this.#run.contracts = projected.run.contracts;

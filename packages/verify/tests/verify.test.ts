@@ -61,6 +61,46 @@ describe("schema-v4 verification contract", () => {
     expect(phases).toEqual(["baseline", "capture", "compare", "gates", "complete"]);
   });
 
+  it("does not apply configured storage state to public targets", async () => {
+    const runPipeline = vi.fn().mockResolvedValue({ ok: true, pass: true });
+    await verify(
+      { schemaVersion: 4, target: { ...target, auth: "none" }, contracts: [pageContract] },
+      {
+        projectRoot: "/repo",
+        storageStatePath: "/missing/user.json",
+        providerFor: () => provider({
+          ok: true,
+          baseline: {
+            evidence: {
+              kind: "figma",
+              path: "/repo/figma-gold.png",
+              metaPath: "/repo/figma-gold.meta.json",
+              fileKey: "file",
+              nodeId: "1:2",
+              fetchedAt: "2026-08-01T00:00:00.000Z",
+              lastModified: null,
+            },
+            warnings: [],
+          },
+        }),
+        runPipeline,
+      },
+    );
+
+    expect(runPipeline.mock.calls[0]?.[0].storageStatePath).toBeUndefined();
+  });
+
+  it("rejects protected targets when storage state is not configured", async () => {
+    const baselineProvider = provider({ ok: false, error: "unused", message: "unused" });
+    const artifact = await verify(
+      { schemaVersion: 4, target: { ...target, auth: "storageState" }, contracts: [pageContract] },
+      { projectRoot: "/repo", providerFor: () => baselineProvider },
+    );
+
+    expect(artifact.results[0]).toMatchObject({ error: "STORAGE_STATE_NOT_CONFIGURED", pass: false });
+    expect(baselineProvider.resolve).not.toHaveBeenCalled();
+  });
+
   it("records provider failure without running pipeline", async () => {
     const runPipeline = vi.fn();
     const artifact = await verify(
@@ -102,6 +142,12 @@ describe("schema-v4 verification contract", () => {
     expect(() => verificationRequestSchema.parse({ schemaVersion: 4, target, contracts: [web] })).not.toThrow();
     expect(() => verificationRequestSchema.parse({ schemaVersion: 4, target, contracts: [{ ...web, baseline: { ...web.baseline, revision: "" } }] })).toThrow();
     expect(() => verificationRequestSchema.parse({ schemaVersion: 4, target, contracts: [{ ...web, baseline: { ...web.baseline, url: "ftp://example.com/login" } }] })).toThrow(/http or https/);
+  });
+
+  it("accepts explicit target auth modes and rejects unknown modes", () => {
+    expect(() => verificationRequestSchema.parse({ schemaVersion: 4, target: { ...target, auth: "none" }, contracts: [pageContract] })).not.toThrow();
+    expect(() => verificationRequestSchema.parse({ schemaVersion: 4, target: { ...target, auth: "storageState" }, contracts: [pageContract] })).not.toThrow();
+    expect(() => verificationRequestSchema.parse({ schemaVersion: 4, target: { ...target, auth: "cookies" }, contracts: [pageContract] })).toThrow();
   });
 
   it("rejects batches larger than eight contracts and duplicate ids", () => {

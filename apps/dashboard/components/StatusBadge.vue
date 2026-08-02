@@ -13,7 +13,13 @@ const colors: Record<DashboardVerdict, 'neutral' | 'info' | 'success' | 'error' 
 </script>
 
 <template>
-  <UBadge class="status-badge" :data-status="status" :color="colors[status]" variant="subtle" size="sm">
+  <UBadge
+    class="w-fit! rounded-[4px]! font-semibold! text-[0.68rem]! leading-none! font-mono! capitalize!"
+    :data-status="status"
+    :color="colors[status]"
+    variant="subtle"
+    size="sm"
+  >
     {{ status }}
   </UBadge>
 </template>

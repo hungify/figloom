@@ -2,19 +2,17 @@ import * as path from "node:path";
 
 import type { Command } from "commander";
 
-import { runInit } from "../init.ts";
+import { runProjectInit } from "../init.ts";
 import { subcommand } from "./shared.ts";
 
 export function registerInitCommand(program: Command): void {
   program.addCommand(
-    subcommand("init", "Interactively scaffold a schema-v4 visual contract.")
+    subcommand("init", "Initialize Figloom in a project.")
       .option("--project-root <dir>", "target project root")
-      .option("--output <path>", "contract path relative to project root")
-      .option("--force", "replace existing contract")
-      .action((options: { projectRoot?: string; output?: string; force?: boolean }) =>
-        runInit({
+      .option("--force", "replace existing Figloom config")
+      .action((options: { projectRoot?: string; force?: boolean }) =>
+        runProjectInit({
           projectRoot: path.resolve(options.projectRoot ?? process.cwd()),
-          outputPath: options.output,
           force: options.force,
         }),
       ),
