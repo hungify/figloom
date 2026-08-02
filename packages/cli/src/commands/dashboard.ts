@@ -14,7 +14,8 @@ import { subcommand } from "./shared.ts";
 
 async function openCommand(options: { artifact: string; open: boolean }): Promise<void> {
   const artifact = await readVerificationArtifact(options.artifact);
-  const server = await startDashboardServer({ source: await archivedDashboardSource(artifact) });
+  const suiteName = path.basename(path.dirname(path.resolve(options.artifact)));
+  const server = await startDashboardServer({ source: await archivedDashboardSource(artifact, suiteName) });
   try {
     console.error(`Dashboard: ${server.url}`);
     if (options.open) await openBrowser(server.url);
@@ -26,7 +27,8 @@ async function openCommand(options: { artifact: string; open: boolean }): Promis
 
 async function reportCommand(options: { artifact: string; output: string }): Promise<void> {
   const artifact = await readVerificationArtifact(options.artifact);
-  const indexPath = await exportDashboardReport({ artifact, outputDirectory: options.output });
+  const suiteName = path.basename(path.dirname(path.resolve(options.artifact)));
+  const indexPath = await exportDashboardReport({ artifact, suiteName, outputDirectory: options.output });
   console.log(
     JSON.stringify(
       { artifactPath: path.resolve(options.artifact), reportPath: indexPath },
