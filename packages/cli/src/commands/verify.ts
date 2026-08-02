@@ -49,7 +49,8 @@ async function verifyCommand(options: VerifyOptions): Promise<void> {
   }
 
   const projectRoot = path.resolve(options.projectRoot ?? process.cwd());
-  const dashboardStore = options.ui ? new LiveDashboardStore(request) : undefined;
+  const suiteName = path.basename(path.dirname(path.resolve(options.output)));
+  const dashboardStore = options.ui ? new LiveDashboardStore(request, new Date(), suiteName) : undefined;
   let dashboardServer: DashboardServer | undefined;
   if (dashboardStore) {
     dashboardServer = await startDashboardServer({

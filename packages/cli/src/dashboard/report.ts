@@ -15,8 +15,8 @@ export async function readVerificationArtifact(filePath: string): Promise<Verifi
   return verificationArtifactSchema.parse(value);
 }
 
-export async function archivedDashboardSource(artifact: VerificationArtifact) {
-  const projection = await projectArtifact(artifact);
+export async function archivedDashboardSource(artifact: VerificationArtifact, suiteName?: string) {
+  const projection = await projectArtifact(artifact, suiteName);
   return {
     snapshot: () => projection.run,
     files: () => projection.files,
@@ -25,6 +25,7 @@ export async function archivedDashboardSource(artifact: VerificationArtifact) {
 
 export async function exportDashboardReport(options: {
   artifact: VerificationArtifact;
+  suiteName?: string;
   outputDirectory: string;
   clientRoot?: string;
 }): Promise<string> {
@@ -42,7 +43,7 @@ export async function exportDashboardReport(options: {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  const projection = await projectArtifact(options.artifact);
+  const projection = await projectArtifact(options.artifact, options.suiteName);
   await fs.mkdir(path.join(outputDirectory, "data"), { recursive: true });
   await fs.cp(clientRoot, outputDirectory, { recursive: true });
   await fs.writeFile(
