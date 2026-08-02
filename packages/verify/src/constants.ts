@@ -2,6 +2,7 @@ import {
   FIGMA_NODE_ID,
   MAX_CONTRACTS_PER_REQUEST,
   MAX_CONTRACT_TIMEOUT_MS,
+  MAX_MASK_SELECTORS,
   MAX_STABILITY_SAMPLES,
   MIN_CONTRACTS_PER_REQUEST,
   MIN_CONTRACT_TIMEOUT_MS,
@@ -13,6 +14,7 @@ export {
   FIGMA_NODE_ID,
   MAX_CONTRACTS_PER_REQUEST,
   MAX_CONTRACT_TIMEOUT_MS,
+  MAX_MASK_SELECTORS,
   MAX_STABILITY_SAMPLES,
   MIN_CONTRACTS_PER_REQUEST,
   MIN_CONTRACT_TIMEOUT_MS,
@@ -62,7 +64,9 @@ export const CLOCK_SKEW_MS = MS_PER_MINUTE;
 
 export const EXPECT_SIZE_TOLERANCE_PX = 2;
 export const RESIDUAL_CLUSTER_BLOCK = 80;
-export const PIXEL_THRESHOLD = 0.2;
+// Tighter than pixelmatch's documented default (0.2); this widens the diff
+// bounding box, so avgDeltaE2000 below runs more often instead of being skipped.
+export const PIXEL_THRESHOLD = 0.1;
 export const CLUSTER_GRID = 4;
 export const CLUSTER_SLACK = 0.02;
 export const REAL_DIFF_RED_MIN = 200;

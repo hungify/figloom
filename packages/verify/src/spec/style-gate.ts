@@ -157,6 +157,10 @@ export async function styleGate(input: StyleGateInput): Promise<StyleGateOutcome
         repairCandidate: true,
       });
     }
+  } else if (meta.fills && meta.fills.length > 0) {
+    warnings.push(
+      "style-gate skipped color check: node has no visible SOLID fill (gradient, image, or hidden fills are not compared).",
+    );
   }
 
   return { pass: topIssues.length === 0, topIssues, warnings };

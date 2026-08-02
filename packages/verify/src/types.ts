@@ -134,6 +134,7 @@ export interface RunResult {
   target: WebTarget;
   selector: string | null;
   expectSize: ExpectSize | null;
+  maskSelectors: string[] | null;
   baseline: BaselineEvidence;
   evidenceHashes: RunEvidenceHashes;
   fidelityScore: number;
@@ -226,6 +227,7 @@ export interface VerificationRunOptions {
   runType?: RunType;
   outDir: string;
   expectSize?: ExpectSize;
+  maskSelectors?: string[];
   stabilitySamples?: number;
   timeoutMs?: number;
   hideDevtoolsChrome?: boolean;

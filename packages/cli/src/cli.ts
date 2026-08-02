@@ -10,6 +10,7 @@ import { registerDebugCommands } from "./commands/debug.ts";
 import { registerDoneGateCommand } from "./commands/done-gate.ts";
 import { registerInitCommand } from "./commands/init-command.ts";
 import { registerRunCommand } from "./commands/run.ts";
+import { registerSchemaCommand } from "./commands/schema.ts";
 import { registerStatusCommand } from "./commands/status.ts";
 import { registerVerifyCommand } from "./commands/verify.ts";
 
@@ -41,6 +42,7 @@ export function createProgram(): Command {
   registerDashboardCommands(program);
   registerDoneGateCommand(program);
   registerStatusCommand(program, PACKAGE_VERSION);
+  registerSchemaCommand(program);
   registerInitCommand(program);
   registerAuthCommand(program);
   registerContractCommands(program);

@@ -28,6 +28,7 @@ export interface DoneGateViewport {
   selector?: string;
   expectSize?: ExpectSize;
   pageReason?: string;
+  maskSelectors?: string[];
 }
 
 export interface DoneGateOptions {
@@ -113,6 +114,7 @@ const RunMetaSchema = z.object({
   profile: z.string(),
   runType: z.string(),
   pageReason: z.string().nullable(),
+  maskSelectors: z.array(z.string()).nullable().optional(),
   viewportSize: z.unknown(),
 }).passthrough();
 const PunchListSchema = z.object({
@@ -233,6 +235,7 @@ function verifyRunArtifacts(outDir: string, contract: DoneGateViewport, score: S
       if (meta.viewport !== contract.viewport || meta.profile !== contract.profile) reasons.push("run-meta viewport/profile mismatch.");
       if (meta.runType !== "final") reasons.push("run-meta runType must be final.");
       if (contract.profile === "page" && meta.pageReason !== contract.pageReason) reasons.push("run-meta pageReason mismatch.");
+      if (!sameMaskSelectors(meta.maskSelectors, contract.maskSelectors)) reasons.push("run-meta maskSelectors do not match contract.");
       if (!meta.viewportSize || typeof meta.viewportSize !== "object") reasons.push("run-meta viewportSize missing.");
     }
   } catch {
@@ -307,6 +310,12 @@ function validateTimestamp(value: string, label: string, now: number, maxAge: nu
 function sameSize(actual: ExpectSize | null | undefined, expected?: ExpectSize): boolean {
   if (!actual && !expected) return true;
   return actual?.width === expected?.width && actual?.height === expected?.height;
+}
+
+function sameMaskSelectors(actual: string[] | null | undefined, expected?: string[]): boolean {
+  const a = actual ?? [];
+  const b = expected ?? [];
+  return a.length === b.length && a.every((selector, index) => selector === b[index]);
 }
 
 function isUrl(value: string): boolean {

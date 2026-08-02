@@ -38,6 +38,7 @@ export interface CaptureOptions {
   samples?: number;
   persistStabilitySamples?: boolean;
   timeoutMs?: number;
+  maskSelectors?: string[];
 }
 
 export interface CaptureSuccess {
@@ -100,6 +101,8 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
       const reject = await resolveSelector(page, options.selector);
       if (reject) return reject;
     }
+
+    const maskLocators = options.maskSelectors?.map((selector) => page.locator(selector));
 
     const capturedAt = new Date().toISOString();
     const capturePaths: string[] = [];
@@ -164,12 +167,13 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
             warnings.push("could not read computed style (execution context may have been destroyed).");
           }
         }
-        await loc.screenshot({ path: outPath, animations: "disabled" });
+        await loc.screenshot({ path: outPath, animations: "disabled", mask: maskLocators });
       } else {
         await page.screenshot({
           path: outPath,
           fullPage: options.fullPage ?? false,
           animations: "disabled",
+          mask: maskLocators,
         });
       }
       capturePaths.push(outPath);

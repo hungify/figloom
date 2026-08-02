@@ -7,6 +7,7 @@ export const MIN_CONTRACT_TIMEOUT_MS = 1_000;
 export const MAX_CONTRACT_TIMEOUT_MS = 120_000;
 export const MIN_STABILITY_SAMPLES = 2;
 export const MAX_STABILITY_SAMPLES = 5;
+export const MAX_MASK_SELECTORS = 10;
 export const FIGMA_NODE_ID = /^(?:I\d+:\d+(?:;\d+:\d+)+|\d+:\d+)$/;
 
 const VISUAL_ARTIFACT_DIR = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))\.figloom\/artifacts\/visual-verifications\/.+/;
@@ -90,6 +91,7 @@ export const verificationContractSchema = z
     outDir: z.string().regex(VISUAL_ARTIFACT_DIR),
     scope: z.discriminatedUnion("kind", [pageScopeSchema, regionScopeSchema]),
     profile: z.enum(["component/strict", "component/dev"]).optional(),
+    maskSelectors: z.array(z.string().trim().min(1)).max(MAX_MASK_SELECTORS).optional(),
     stabilitySamples: z.number().int().min(MIN_STABILITY_SAMPLES).max(MAX_STABILITY_SAMPLES).optional(),
     timeoutMs: z.number().int().min(MIN_CONTRACT_TIMEOUT_MS).max(MAX_CONTRACT_TIMEOUT_MS).optional(),
     hideDevtoolsChrome: z.boolean().optional(),
@@ -109,6 +111,13 @@ export const verificationContractSchema = z
         code: "custom",
         path: ["devtoolsMarker"],
         message: "devtoolsMarker requires hideDevtoolsChrome=true",
+      });
+    }
+    if (contract.maskSelectors != null && contract.maskSelectors.length > 0 && contract.baseline.kind === "figma") {
+      context.addIssue({
+        code: "custom",
+        path: ["maskSelectors"],
+        message: "maskSelectors requires a web baseline; figma baselines are not masked",
       });
     }
   });
@@ -243,6 +252,10 @@ export const visualScoreArtifactSchema = z.object({
     diff: z.string().min(1).nullable(),
   }).passthrough(),
 }).passthrough();
+
+export function toJsonSchema(schema: z.core.$ZodType): Record<string, unknown> {
+  return z.toJSONSchema(schema) as Record<string, unknown>;
+}
 
 export type VerificationContract = z.infer<typeof verificationContractSchema>;
 export type VerificationRequest = z.infer<typeof verificationRequestSchema>;

@@ -113,6 +113,7 @@ export async function verify(
         pageReason: contract.scope.kind === "page" ? contract.scope.pageReason : undefined,
         runType: "final",
         expectSize: contract.scope.kind === "region" ? contract.scope.expectSize : undefined,
+        maskSelectors: contract.maskSelectors,
         stabilitySamples,
         timeoutMs: contract.timeoutMs,
         hideDevtoolsChrome: contract.hideDevtoolsChrome,
@@ -217,5 +218,6 @@ function contractToDoneGate(
     selector: contract.scope.kind === "region" ? contract.scope.selector : undefined,
     expectSize: contract.scope.kind === "region" ? contract.scope.expectSize : undefined,
     pageReason: contract.scope.kind === "page" ? contract.scope.pageReason : undefined,
+    maskSelectors: contract.maskSelectors,
   };
 }
