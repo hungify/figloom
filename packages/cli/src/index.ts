@@ -1,5 +1,7 @@
 export * from "@figloom/contracts";
 export * from "@figloom/verify";
+export { defineConfig, loadFigloomConfig } from "./config.ts";
+export type { FigloomConfig, ResolvedFigloomConfig } from "./config.ts";
 export { LiveDashboardStore, projectArtifact } from "./dashboard/model.ts";
 export {
   archivedDashboardSource,

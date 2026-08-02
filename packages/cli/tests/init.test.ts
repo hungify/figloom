@@ -4,7 +4,7 @@ import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createInitRequest, writeInitRequest } from "../src/init.ts";
+import { initializeProject } from "../src/init.ts";
 
 const temporaryDirectories: string[] = [];
 
@@ -14,41 +14,36 @@ afterEach(() => {
   }
 });
 
-describe("init scaffold", () => {
-  it("creates a schema-valid Figma page contract", () => {
-    const request = createInitRequest({
-      targetUrl: "http://127.0.0.1:3000/login",
-      contractId: "login.desktop",
-      baseline: { kind: "figma", fileKey: "abc123", nodeId: "153:5181" },
-      viewport: { name: "desktop", width: 1440, height: 1024 },
-      scope: { kind: "page", pageReason: "Complete login page." },
-    });
+describe("project init", () => {
+  it("creates config without enabling auth globally", () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "figloom-project-init-"));
+    temporaryDirectories.push(projectRoot);
 
-    expect(request).toMatchObject({
-      schemaVersion: 4,
-      target: { kind: "web", url: "http://127.0.0.1:3000/login" },
-      contracts: [{ id: "login.desktop", outDir: ".figloom/artifacts/visual-verifications/login/desktop" }],
-    });
+    const result = initializeProject(projectRoot);
+    const config = fs.readFileSync(result.configPath, "utf8");
+
+    expect(config).toContain('// storageStatePath: ".figloom/auth/user.json"');
+    expect(fs.readFileSync(result.authGitignorePath, "utf8")).toBe("*\n!.gitignore\n");
+    expect(fs.existsSync(result.authStatePath)).toBe(false);
   });
 
-  it("writes nested output and refuses accidental overwrite", () => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "figloom-init-"));
-    temporaryDirectories.push(directory);
-    const outputPath = path.join(directory, ".figloom", "visual-contract.json");
-    const request = createInitRequest({
-      targetUrl: "https://preview.example.com/card",
-      contractId: "card.mobile",
-      baseline: { kind: "web", url: "https://example.com/card", revision: "git:a1b2c3d" },
-      viewport: { name: "mobile", width: 390, height: 844 },
-      scope: { kind: "region", selector: "[data-testid=card]", expectSize: { width: 320, height: 240 } },
-    });
+  it("refuses accidental config overwrite", () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "figloom-project-init-"));
+    temporaryDirectories.push(projectRoot);
+    initializeProject(projectRoot);
 
-    writeInitRequest(outputPath, request);
+    expect(() => initializeProject(projectRoot)).toThrow("Refusing to overwrite existing file");
+    expect(() => initializeProject(projectRoot, true)).not.toThrow();
+  });
 
-    expect(JSON.parse(fs.readFileSync(outputPath, "utf8"))).toMatchObject({
-      contracts: [{ profile: "component/strict" }],
-    });
-    expect(() => writeInitRequest(outputPath, request)).toThrow("Refusing to overwrite existing file");
-    expect(() => writeInitRequest(outputPath, request, true)).not.toThrow();
+  it("does not create a second config format", () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "figloom-project-init-"));
+    temporaryDirectories.push(projectRoot);
+    const configPath = path.join(projectRoot, "figloom.config.mjs");
+    fs.writeFileSync(configPath, "export default {};\n");
+
+    expect(() => initializeProject(projectRoot)).toThrow("Refusing to overwrite existing file");
+    expect(initializeProject(projectRoot, true).configPath).toBe(configPath);
+    expect(fs.existsSync(path.join(projectRoot, "figloom.config.ts"))).toBe(false);
   });
 });

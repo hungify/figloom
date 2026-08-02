@@ -1,6 +1,6 @@
 {
   "name": "@figloom/verify",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Visual verification engine for Figma-to-web and web-to-web workflows.",
   "repository": {
     "type": "git",
