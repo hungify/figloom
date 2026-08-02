@@ -104,6 +104,13 @@ npx figloom init
 
 By default this writes `.figloom/visual-contract.json`. Use `--output <path>` to choose another location. Existing files require explicit `--force`.
 
+Print the live JSON Schema for a contract file or verification artifact:
+
+```bash
+npx figloom schema --target contract
+npx figloom schema --target artifact
+```
+
 Set Figma token only when using Figma baselines:
 
 ```bash

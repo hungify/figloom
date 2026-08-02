@@ -250,6 +250,10 @@ export const visualScoreArtifactSchema = z.object({
   }).passthrough(),
 }).passthrough();
 
+export function toJsonSchema(schema: z.core.$ZodType): Record<string, unknown> {
+  return z.toJSONSchema(schema) as Record<string, unknown>;
+}
+
 export type VerificationContract = z.infer<typeof verificationContractSchema>;
 export type VerificationRequest = z.infer<typeof verificationRequestSchema>;
 export type VerificationArtifact = z.infer<typeof verificationArtifactSchema>;
