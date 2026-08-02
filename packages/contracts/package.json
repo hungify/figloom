@@ -1,6 +1,6 @@
 {
   "name": "@figloom/contracts",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Versioned contracts, artifacts, and dashboard event types for Figloom.",
   "repository": {
     "type": "git",
