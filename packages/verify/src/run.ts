@@ -97,6 +97,7 @@ export async function run(options: RunOptions): Promise<FidelityResult> {
 export interface RunVerificationDependencies {
   captureImpl?: (options: CaptureOptions) => Promise<CaptureOutcome>;
   onPhase?: (phase: "compare" | "gates") => void;
+  authenticate?: CaptureOptions["authenticate"];
 }
 
 export async function runVerification(
@@ -134,6 +135,12 @@ export async function runVerification(
     timeoutMs: options.timeoutMs,
     hideDevtoolsChrome: options.hideDevtoolsChrome,
     devtoolsMarker: options.devtoolsMarker,
+    cookies: options.target.cookies,
+    extraHeaders: options.target.extraHeaders,
+    localStorage: options.target.localStorage,
+    queryParams: options.target.queryParams,
+    basicAuth: options.target.basicAuth,
+    authenticate: dependencies.authenticate,
     maskSelectors: options.maskSelectors,
   });
   if (!captured.ok) return captured;

@@ -13,7 +13,7 @@
     "dev:dashboard": "pnpm --filter @figloom/dashboard dev",
     "figloom": "pnpm --filter figloom-verify cli",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @figloom/verify test && pnpm --filter figloom-verify test",
+    "test": "pnpm --filter @figloom/verify test && pnpm --filter figloom-verify test && pnpm --filter @figloom/dashboard test",
     "validate": "pnpm run typecheck && pnpm run test",
     "changeset": "changeset",
     "version-packages": "changeset version"

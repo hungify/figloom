@@ -3,8 +3,10 @@ import * as path from "node:path";
 
 import { DEFAULT_STABILITY_SAMPLES_FINAL, JSON_INDENT_SPACES } from "./constants.ts";
 import { createBaselineProvider, type BaselineProvider } from "./baseline.ts";
+import type { CaptureOptions } from "./capture.ts";
 import { verificationArtifactSchema, verificationRequestSchema } from "@figloom/contracts";
 import { checkDoneGate, type DoneGateViewport } from "./done-gate.ts";
+import { runWithConcurrency } from "./concurrency.ts";
 import { resolveArtifactPath } from "./paths.ts";
 import { invalidateRunArtifacts, runVerification } from "./run.ts";
 import { SCHEMA_VERSION } from "./types.ts";
@@ -22,6 +24,10 @@ export interface VerifyOptions {
   onProgress?: (event: { index: number; total: number; id: string; phase: VerificationPhase }) => void;
   providerFor?: (source: VerificationContract["baseline"]) => BaselineProvider;
   runPipeline?: typeof runVerification;
+  /** Max parallel contracts (each own Chromium). Default 1. */
+  maxConcurrency?: number;
+  /** Pre-navigation login hook; see CaptureOptions.authenticate. */
+  authenticate?: CaptureOptions["authenticate"];
 }
 
 export async function verify(
@@ -34,49 +40,48 @@ export async function verify(
     ? path.resolve(options.storageStatePath)
     : undefined;
   const requiresStorageState = request.target.auth === "storageState";
-  const results: VerificationArtifact["results"] = [];
+  const total = request.contracts.length;
 
-  for (let index = 0; index < request.contracts.length; index += 1) {
-    const contract = request.contracts[index]!;
+  async function runContract(
+    contract: VerificationContract,
+    index: number,
+  ): Promise<VerificationArtifact["results"][number]> {
     const outDir = resolveArtifactPath(contract.outDir, projectRoot);
     invalidateRunArtifacts(outDir);
     try {
       if (requiresStorageState && !storageStatePath) {
-        results.push({
+        return {
           id: contract.id,
           ok: false,
           pass: false,
           error: "STORAGE_STATE_NOT_CONFIGURED",
           message: "Target requires auth=storageState, but figloom.config.ts has no storageStatePath.",
           outDir,
-        });
-        continue;
+        };
       }
       if (requiresStorageState && storageStatePath && !fs.existsSync(storageStatePath)) {
-        results.push({
+        return {
           id: contract.id,
           ok: false,
           pass: false,
           error: "STORAGE_STATE_NOT_FOUND",
           message: `Playwright storage state not found: ${storageStatePath}.`,
           outDir,
-        });
-        continue;
+        };
       }
       const profile = contract.scope.kind === "region" ? (contract.profile ?? "component/strict") : "page";
       const stabilitySamples = contract.stabilitySamples ?? DEFAULT_STABILITY_SAMPLES_FINAL;
-      options.onProgress?.({ index, total: request.contracts.length, id: contract.id, phase: "baseline" });
+      options.onProgress?.({ index, total, id: contract.id, phase: "baseline" });
       const provider = (options.providerFor ?? createBaselineProvider)(contract.baseline);
       if (provider.kind !== contract.baseline.kind) {
-        results.push({
+        return {
           id: contract.id,
           ok: false,
           pass: false,
           error: "BASELINE_PROVIDER_MISMATCH",
           message: `Provider kind "${provider.kind}" cannot resolve "${contract.baseline.kind}" baseline.`,
           outDir,
-        });
-        continue;
+        };
       }
       const resolved = await provider.resolve({
         source: contract.baseline,
@@ -86,18 +91,17 @@ export async function verify(
         stabilitySamples,
       });
       if (!resolved.ok) {
-        results.push({
+        return {
           id: contract.id,
           ok: false,
           pass: false,
           error: resolved.error,
           message: resolved.message,
           outDir,
-        });
-        continue;
+        };
       }
 
-      options.onProgress?.({ index, total: request.contracts.length, id: contract.id, phase: "capture" });
+      options.onProgress?.({ index, total, id: contract.id, phase: "capture" });
       const result = await (options.runPipeline ?? runVerification)({
         target: request.target,
         storageStatePath: requiresStorageState ? storageStatePath : undefined,
@@ -119,33 +123,31 @@ export async function verify(
         hideDevtoolsChrome: contract.hideDevtoolsChrome,
         devtoolsMarker: contract.devtoolsMarker,
       }, {
-        onPhase: (phase) => options.onProgress?.({
-          index,
-          total: request.contracts.length,
-          id: contract.id,
-          phase,
-        }),
+        onPhase: (phase) => options.onProgress?.({ index, total, id: contract.id, phase }),
+        authenticate: options.authenticate,
       });
-      results.push({
+      return {
         id: contract.id,
         ok: result.ok,
         pass: result.ok && result.pass,
         ...(!result.ok ? { error: result.error, message: result.message } : {}),
         outDir,
-      });
+      };
     } catch (error) {
-      results.push({
+      return {
         id: contract.id,
         ok: false,
         pass: false,
         error: "VERIFY_FAILED",
         message: error instanceof Error ? error.message : String(error),
         outDir,
-      });
+      };
     } finally {
-      options.onProgress?.({ index, total: request.contracts.length, id: contract.id, phase: "complete" });
+      options.onProgress?.({ index, total, id: contract.id, phase: "complete" });
     }
   }
+
+  const results = await runWithConcurrency(request.contracts, options.maxConcurrency ?? 1, runContract);
 
   return {
     schemaVersion: SCHEMA_VERSION,

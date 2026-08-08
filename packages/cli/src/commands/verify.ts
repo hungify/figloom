@@ -1,5 +1,6 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import type { Command } from "commander";
@@ -16,17 +17,25 @@ import {
   writeVerificationArtifact,
 } from "@figloom/verify";
 import { LiveDashboardStore } from "../dashboard/model.ts";
+import { exportDashboardReport } from "../dashboard/report.ts";
 import {
   startDashboardServer,
   waitForDashboardShutdown,
   type DashboardServer,
 } from "../dashboard/server.ts";
-import { subcommand } from "./shared.ts";
+import { positiveInteger, subcommand } from "./shared.ts";
+
+const MAX_DEFAULT_CONCURRENCY = 4;
+
+function defaultConcurrency(): number {
+  return Math.min(MAX_DEFAULT_CONCURRENCY, os.availableParallelism?.() ?? 2);
+}
 
 interface VerifyOptions {
   contract: string;
   output: string;
   projectRoot?: string;
+  concurrency?: number;
   ui?: boolean;
   open: boolean;
 }
@@ -70,6 +79,7 @@ async function verifyCommand(options: VerifyOptions): Promise<void> {
     const artifact = await verify(request, {
       projectRoot,
       storageStatePath: config.resolvedStorageStatePath,
+      maxConcurrency: options.concurrency ?? defaultConcurrency(),
       onProgress: ({ index, total, id, phase }) => {
         console.error(`[${index + 1}/${total}] ${id}: ${phase}`);
         dashboardStore?.progress(id, phase);
@@ -82,8 +92,14 @@ async function verifyCommand(options: VerifyOptions): Promise<void> {
       .createHash("sha256")
       .update(fs.readFileSync(resolvedOutput))
       .digest("hex")}`;
+
+    const reportDir = path.join(path.dirname(resolvedOutput), "report");
+    fs.rmSync(reportDir, { recursive: true, force: true });
+    const reportIndexPath = await exportDashboardReport({ artifact, suiteName, outputDirectory: reportDir });
+    console.error(`Static report: ${reportIndexPath}`);
+
     console.log(
-      JSON.stringify({ ...artifact, artifactPath: resolvedOutput, contentHash }, null, JSON_INDENT_SPACES),
+      JSON.stringify({ ...artifact, artifactPath: resolvedOutput, contentHash, reportPath: reportIndexPath }, null, JSON_INDENT_SPACES),
     );
     process.exitCode = !artifact.ok
       ? EXIT_USAGE_ERROR
@@ -105,6 +121,7 @@ export function registerVerifyCommand(program: Command): void {
       .requiredOption("--contract <path>", "schema-v4 visual contract JSON")
       .requiredOption("--output <path>", "verification artifact output")
       .option("--project-root <dir>", "target project root")
+      .option("--concurrency <n>", "max contracts to verify at once (default: min(4, CPU cores))", positiveInteger)
       .option("--ui", "serve live dashboard")
       .option("--no-open", "do not open dashboard in browser")
       .action(verifyCommand),

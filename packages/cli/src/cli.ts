@@ -2,11 +2,12 @@ import * as fs from "node:fs";
 
 import { Command, CommanderError } from "commander";
 
-import { EXIT_OK, EXIT_USAGE_ERROR, loadAncestorEnv } from "@figloom/verify";
-import { registerDashboardCommands } from "./commands/dashboard.ts";
+import { EXIT_OK, EXIT_USAGE_ERROR, loadProjectEnv } from "@figloom/verify";
+import { registerDashboardCommands, runAggregatedDashboard } from "./commands/dashboard.ts";
 import { registerAuthCommand } from "./commands/auth.ts";
 import { registerContractCommands } from "./commands/contract.ts";
 import { registerDebugCommands } from "./commands/debug.ts";
+import { registerDiscoverCommand } from "./commands/discover.ts";
 import { registerDoneGateCommand } from "./commands/done-gate.ts";
 import { registerInitCommand } from "./commands/init-command.ts";
 import { registerRunCommand } from "./commands/run.ts";
@@ -14,7 +15,7 @@ import { registerSchemaCommand } from "./commands/schema.ts";
 import { registerStatusCommand } from "./commands/status.ts";
 import { registerVerifyCommand } from "./commands/verify.ts";
 
-loadAncestorEnv();
+loadProjectEnv();
 
 const PACKAGE_VERSION = (
   JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
@@ -39,6 +40,7 @@ export function createProgram(): Command {
     );
 
   registerVerifyCommand(program);
+  registerDiscoverCommand(program);
   registerDashboardCommands(program);
   registerDoneGateCommand(program);
   registerStatusCommand(program, PACKAGE_VERSION);
@@ -49,10 +51,7 @@ export function createProgram(): Command {
   registerDebugCommands(program);
   registerRunCommand(program);
 
-  program.action(() => {
-    program.outputHelp();
-    process.exitCode = EXIT_USAGE_ERROR;
-  });
+  program.action(() => runAggregatedDashboard({ projectRoot: process.cwd(), open: true }));
   return program;
 }
 

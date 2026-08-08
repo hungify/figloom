@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@figloom/contracts": "workspace:*",
@@ -22,6 +24,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "6.0.3",
     "vite": "^8.2.0",
+    "vitest": "^4.1.10",
     "vue-tsc": "3.3.8"
   }
 }

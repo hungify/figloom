@@ -1,20 +1,44 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export function loadAncestorEnv(startDir: string = process.cwd()): string[] {
+const DEFAULT_ENV_FILES = [".env.local", ".env"] as const;
+
+export interface LoadProjectEnvOptions {
+  files?: string[];
+}
+
+export function loadProjectEnv(
+  projectRoot: string = process.cwd(),
+  options?: LoadProjectEnvOptions,
+): string[] {
+  return loadEnvFiles(projectRoot, options?.files ?? [...DEFAULT_ENV_FILES], { required: false });
+}
+
+export function loadEnvFiles(
+  projectRoot: string,
+  envFile: string | string[],
+  options?: { required?: boolean },
+): string[] {
+  const root = path.resolve(projectRoot);
+  const names = Array.isArray(envFile) ? envFile : [envFile];
+  const required = options?.required ?? true;
   const loaded: string[] = [];
-  let dir = path.resolve(startDir);
-  for (;;) {
-    for (const name of [".env.local", ".env"]) {
-      const file = path.join(dir, name);
-      if (!fs.existsSync(file)) continue;
-      applyEnvFile(file);
-      loaded.push(file);
+
+  for (const name of names) {
+    if (!name.trim()) throw new Error("envFile entries must be non-empty strings.");
+    if (path.isAbsolute(name) || name.split(/[\\/]/).includes("..")) {
+      throw new Error("envFile must be project-relative without parent traversal.");
     }
-    if (fs.existsSync(path.join(dir, ".git"))) break;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
+    const file = path.resolve(root, name);
+    if (file !== root && !file.startsWith(`${root}${path.sep}`)) {
+      throw new Error(`envFile escapes project root: ${name}`);
+    }
+    if (!fs.existsSync(file)) {
+      if (required) throw new Error(`envFile not found: ${name}`);
+      continue;
+    }
+    applyEnvFile(file);
+    loaded.push(file);
   }
   return loaded;
 }

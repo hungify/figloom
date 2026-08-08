@@ -16,7 +16,7 @@ const contract = {
   id: "login.desktop",
   baseline: { kind: "web" as const, url: "https://prod.example.com/login", revision: "git:abc123" },
   viewport: { name: "desktop", width: 100, height: 80 },
-  outDir: ".figloom/artifacts/visual-verifications/login/desktop",
+  outDir: ".figloom/visual-verifications/login/desktop",
   scope: { kind: "page" as const, pageReason: "Complete screen." },
 };
 

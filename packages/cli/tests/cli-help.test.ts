@@ -21,7 +21,7 @@ const runArguments = [
   "--gold",
   "missing.png",
   "--out-dir",
-  ".figloom/artifacts/visual-verifications/test",
+  ".figloom/visual-verifications/test",
   "--node-id",
   "1:2",
 ];

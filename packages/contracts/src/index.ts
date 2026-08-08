@@ -1,5 +1,21 @@
 import * as z from "zod";
 
+import { VISUAL_ARTIFACT_DIR_PATTERN } from "./paths.ts";
+
+export {
+  AUTH_STATE_RELATIVE_PATH,
+  DEFAULT_AUTH_STATE_PATH,
+  DEFAULT_DISCOVERY_DIR,
+  DISCOVERY_DIR_NAME,
+  FIGLOOM_DIR,
+  VISUAL_ARTIFACT_DIR_PATTERN,
+  VISUAL_CONTRACT_FILE,
+  VISUAL_VERIFICATION_FILE,
+  VISUAL_VERIFICATIONS_DIR,
+  VISUAL_VERIFICATIONS_ROOT,
+  visualArtifactPath,
+} from "./paths.ts";
+
 export const SCHEMA_VERSION = 4 as const;
 export const MIN_CONTRACTS_PER_REQUEST = 1;
 export const MAX_CONTRACTS_PER_REQUEST = 8;
@@ -8,9 +24,8 @@ export const MAX_CONTRACT_TIMEOUT_MS = 120_000;
 export const MIN_STABILITY_SAMPLES = 2;
 export const MAX_STABILITY_SAMPLES = 5;
 export const MAX_MASK_SELECTORS = 10;
+export const MAX_COOKIES = 20;
 export const FIGMA_NODE_ID = /^(?:I\d+:\d+(?:;\d+:\d+)+|\d+:\d+)$/;
-
-const VISUAL_ARTIFACT_DIR = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))\.figloom\/artifacts\/visual-verifications\/.+/;
 
 export const profileSchema = z.enum(["page", "component/strict", "component/dev"]);
 
@@ -58,6 +73,15 @@ export const baselineSchema = z.discriminatedUnion("kind", [
   webBaselineSchema,
 ]);
 
+export const targetCookieSchema = z
+  .object({
+    name: z.string().min(1),
+    value: z.string(),
+    domain: z.string().min(1),
+    path: z.string().min(1).optional(),
+  })
+  .strict();
+
 export const webTargetSchema = z
   .object({
     kind: z.literal("web"),
@@ -65,17 +89,28 @@ export const webTargetSchema = z
     expectedUrl: httpUrlSchema.optional(),
     readySelector: z.string().trim().min(1).optional(),
     auth: z.enum(["none", "storageState"]).optional(),
+    cookies: z.array(targetCookieSchema).max(MAX_COOKIES).optional(),
+    extraHeaders: z.record(z.string().min(1), z.string()).optional(),
+    localStorage: z.record(z.string().min(1), z.string()).optional(),
+    queryParams: z.record(z.string().min(1), z.string()).optional(),
+    basicAuth: z
+      .object({
+        username: z.string().min(1),
+        password: z.string(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
-const pageScopeSchema = z
+export const pageScopeSchema = z
   .object({
     kind: z.literal("page"),
     pageReason: z.string().trim().min(1),
   })
   .strict();
 
-const regionScopeSchema = z
+export const regionScopeSchema = z
   .object({
     kind: z.literal("region"),
     selector: z.string().trim().min(1),
@@ -83,13 +118,17 @@ const regionScopeSchema = z
   })
   .strict();
 
+export const contractScopeSchema = z.discriminatedUnion("kind", [pageScopeSchema, regionScopeSchema]);
+
+export const CONTRACT_ID_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+
 export const verificationContractSchema = z
   .object({
-    id: z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/),
+    id: z.string().regex(CONTRACT_ID_PATTERN),
     baseline: baselineSchema,
     viewport: viewportSchema,
-    outDir: z.string().regex(VISUAL_ARTIFACT_DIR),
-    scope: z.discriminatedUnion("kind", [pageScopeSchema, regionScopeSchema]),
+    outDir: z.string().regex(VISUAL_ARTIFACT_DIR_PATTERN),
+    scope: contractScopeSchema,
     profile: z.enum(["component/strict", "component/dev"]).optional(),
     maskSelectors: z.array(z.string().trim().min(1)).max(MAX_MASK_SELECTORS).optional(),
     stabilitySamples: z.number().int().min(MIN_STABILITY_SAMPLES).max(MAX_STABILITY_SAMPLES).optional(),
@@ -142,6 +181,20 @@ export const verificationRequestSchema = z
       ids.add(contract.id);
     });
   });
+
+export const discoveredContractSchema = z
+  .object({
+    id: z.string().regex(CONTRACT_ID_PATTERN),
+    url: httpUrlSchema,
+    viewport: viewportSchema,
+    baseline: baselineSchema,
+    scope: contractScopeSchema,
+    expectedUrl: httpUrlSchema.optional(),
+    readySelector: z.string().trim().min(1).optional(),
+    auth: z.enum(["none", "storageState"]).optional(),
+    recordedAt: z.string().datetime(),
+  })
+  .strict();
 
 const verificationResultSchema = z
   .object({
@@ -265,5 +318,8 @@ export type BaselineSource = z.infer<typeof baselineSchema>;
 export type FigmaBaselineSource = z.infer<typeof figmaBaselineSchema>;
 export type WebBaselineSource = z.infer<typeof webBaselineSchema>;
 export type WebTarget = z.infer<typeof webTargetSchema>;
+export type TargetCookie = z.infer<typeof targetCookieSchema>;
+export type DiscoveredContract = z.infer<typeof discoveredContractSchema>;
+export type ContractScope = z.infer<typeof contractScopeSchema>;
 
 export * from "./dashboard.ts";

@@ -13,7 +13,7 @@ const pageContract = {
   id: "login.desktop",
   baseline: { kind: "figma" as const, fileKey: "file", nodeId: "1:2" },
   viewport: { name: "desktop", width: 1440, height: 1024 },
-  outDir: ".figloom/artifacts/visual-verifications/login/desktop",
+  outDir: ".figloom/visual-verifications/login/desktop",
   scope: { kind: "page" as const, pageReason: "Complete supplied screen." },
 };
 
@@ -59,6 +59,55 @@ describe("schema-v4 verification contract", () => {
       expect.objectContaining({ target, baseline, profile: "page", runType: "final", stabilitySamples: 3 }),
     );
     expect(phases).toEqual(["baseline", "capture", "compare", "gates", "complete"]);
+  });
+
+  it("runs contracts concurrently when maxConcurrency > 1, preserving result order", async () => {
+    const baseline = {
+      evidence: {
+        kind: "figma" as const,
+        path: "/repo/figma-gold.png",
+        metaPath: "/repo/figma-gold.meta.json",
+        fileKey: "file",
+        nodeId: "1:2",
+        fetchedAt: "2026-08-01T00:00:00.000Z",
+        lastModified: null,
+      },
+      warnings: [],
+    };
+    const contracts = ["slow", "fast", "medium"].map((id, index) => ({
+      ...pageContract,
+      id,
+      outDir: `.figloom/visual-verifications/multi/${id}`,
+      viewport: { ...pageContract.viewport, name: `viewport-${index}` },
+    }));
+    const delays: Record<string, number> = { slow: 60, fast: 10, medium: 30 };
+    const active: Array<{ id: string; start: number; end: number }> = [];
+    const runPipeline = vi.fn().mockImplementation(async (input: { viewport: string }) => {
+      const id = contracts.find((contract) => contract.viewport.name === input.viewport)!.id;
+      const span = { id, start: Date.now(), end: 0 };
+      active.push(span);
+      await new Promise((resolve) => setTimeout(resolve, delays[id]));
+      span.end = Date.now();
+      return { ok: true, pass: true };
+    });
+
+    const artifact = await verify(
+      { schemaVersion: 4, target, contracts },
+      {
+        projectRoot: "/repo",
+        providerFor: () => provider({ ok: true, baseline }),
+        runPipeline,
+        maxConcurrency: 3,
+      },
+    );
+
+    expect(artifact.results.map((result) => result.id)).toEqual(["slow", "fast", "medium"]);
+    expect(artifact.allPassed).toBe(true);
+    // Overlap (not wall-clock) — wall-clock thresholds flake under scheduler jitter.
+    const slow = active.find((span) => span.id === "slow")!;
+    const fast = active.find((span) => span.id === "fast")!;
+    expect(fast.end).toBeLessThan(slow.end);
+    expect(fast.start).toBeLessThan(slow.end);
   });
 
   it("does not apply configured storage state to public targets", async () => {

@@ -110,7 +110,7 @@ Create a visual contract only when mapping a screen or component:
 npx figloom contract create
 ```
 
-This separate wizard asks for target route, readiness selector, baseline source, viewport, and capture scope. By default it writes `.figloom/artifacts/visual-verifications/<feature>/visual-contract.json`, where `<feature>` is the first segment of the contract ID. Use `--output <path>` to choose another location. Existing files require explicit `--force`.
+This separate wizard asks for target route, readiness selector, baseline source, viewport, and capture scope. By default it writes `.figloom/visual-verifications/<feature>/visual-contract.json`, where `<feature>` is the first segment of the contract ID. Use `--output <path>` to choose another location. Existing files require explicit `--force`.
 
 Print the live JSON Schema for a contract file or verification artifact:
 
@@ -127,7 +127,7 @@ export FIGMA_ACCESS_TOKEN="your-token"
 
 ## Contract
 
-Store contracts and outputs under `.figloom/artifacts/visual-verifications/`.
+Store contracts and outputs under `.figloom/visual-verifications/`.
 
 ### Figma vs web
 
@@ -150,7 +150,7 @@ Store contracts and outputs under `.figloom/artifacts/visual-verifications/`.
         "nodeId": "153:5181"
       },
       "viewport": { "name": "desktop", "width": 1440, "height": 1024 },
-      "outDir": ".figloom/artifacts/visual-verifications/login/desktop",
+      "outDir": ".figloom/visual-verifications/login/desktop",
       "scope": {
         "kind": "page",
         "pageReason": "Supplied node represents complete login screen."
@@ -172,6 +172,7 @@ Authenticated screens may provide a project-relative Playwright storage-state fi
 import { defineConfig } from "figloom-verify";
 
 export default defineConfig({
+  // envFile: ".env.playwright",
   storageStatePath: ".figloom/auth/user.json",
 });
 ```
@@ -185,6 +186,26 @@ npx figloom auth --url http://127.0.0.1:3000/login
 Complete login in the opened browser, return to the terminal, then confirm. Figloom saves cookies and local storage without reading credentials. Protected contracts opt in with `"auth": "storageState"`; login and public contracts use `"auth": "none"`. This prevents an existing session from redirecting a login-page capture to a protected page.
 
 The path resolves from the project root. Keep `.figloom/auth/` out of Git because storage state contains session credentials. Playwright applies storage state before navigation, opens the target URL, verifies the final URL, waits for the readiness marker, then captures either the full page or the unique region selector. The same checks run again for every stability sample. Complex data or feature-flag states should remain addressable through deterministic app fixture URLs rather than click timing.
+
+### Other session-seeding fields
+
+Independent of `auth` — combine any of these with `storageState` or with each other, all applied before navigation:
+
+```json
+{
+  "target": {
+    "kind": "web",
+    "url": "http://127.0.0.1:3000/dashboard",
+    "cookies": [{ "name": "session", "value": "abc123", "domain": "127.0.0.1" }],
+    "extraHeaders": { "X-Api-Key": "secret" },
+    "localStorage": { "flag": "beta-ui" },
+    "queryParams": { "token": "xyz" },
+    "basicAuth": { "username": "user", "password": "pass" }
+  }
+}
+```
+
+`cookies` (max 20) mirrors Playwright's own `context.addCookies()` shape. `queryParams` are appended to both the navigated URL and `expectedUrl` before comparison, so the redirect check still matches. A login flow too dynamic for any of these (OAuth, 2FA) is a `VerifyOptions.authenticate` callback on `@figloom/verify`'s `verify()`, not a JSON field — see [Discover contracts from existing e2e tests](#discover-contracts-from-existing-e2e-tests).
 
 ### Web vs web regression
 
@@ -204,7 +225,7 @@ The path resolves from the project root. Keep `.figloom/auth/` out of Git becaus
         "revision": "git:a1b2c3d"
       },
       "viewport": { "name": "desktop", "width": 1440, "height": 1024 },
-      "outDir": ".figloom/artifacts/visual-verifications/login/regression-desktop",
+      "outDir": ".figloom/visual-verifications/login/regression-desktop",
       "scope": {
         "kind": "page",
         "pageReason": "Compare complete login page across deployments."
@@ -245,13 +266,57 @@ Masked elements are overlaid with a solid box on both sides of the comparison, s
 
 `maskSelectors` requires a `web` baseline — masking runs through Playwright during capture, so a `figma` baseline has no masking path and the contract rejects `maskSelectors` in that case.
 
+## Discover contracts from existing e2e tests
+
+Writing `visual-contract.json` by hand (or through `figloom contract create`) means declaring routes twice — once in your Playwright e2e suite, once for figloom. `visualContract()` records the page's real, already-resolved URL from inside a test you already have, instead:
+
+```ts
+import { test } from "@playwright/test";
+// The /discover subpath, not the package root — it never imports @playwright/test itself,
+// so it can't collide with your project's own Playwright instance. Importing the root
+// package here would make Playwright's test runner refuse to start ("Requiring
+// @playwright/test second time"), since it treats two loaded copies as an error.
+import { visualContract } from "@figloom/verify/discover";
+
+test("login page matches Figma", async ({ page }) => {
+  await page.goto("/login"); // baseURL, redirects, env vars — all already resolved here
+  await visualContract(page, {
+    id: "login.desktop",
+    baseline: { kind: "figma", fileKey: "abc123", nodeId: "153:5181" },
+    viewportName: "desktop",
+  });
+});
+```
+
+Run that suite normally (`npx playwright test`) — each `visualContract()` call writes one small record under `.figloom/.discovery/` (one file per call, so parallel Playwright workers never race on a shared file). Then turn what was recorded into real contracts:
+
+```bash
+npx figloom discover --project-root "$PWD"
+```
+
+This groups recordings by their resolved URL, batches them to 8 contracts per request, and writes one `visual-contract.json` per feature under `.figloom/visual-verifications/<host>[/<port>]/<feature>.visual-contract.json` — same depth as unlighthouse's own `<hostname>/<port>/` output nesting (`<host>[/<port>]` auto-derived from the recorded URL, zero config; feature lives in the filename, not a folder of its own). Verifying the same route against different environments — local, dev, staging, prod — never collides, since each gets its own host/port directory; run the e2e suite (and `figloom discover`) once per environment's base URL to get one contract per environment. Recordings are deleted once consumed (pass `--keep-discovery` to keep them). figloom never runs your Playwright suite itself and never touches its `expect`/screenshots — recording is the only thing `visualContract()` does; capture and comparison stay entirely figloom's own engine, in a separate `figloom verify` pass.
+
+`@figloom/verify` ships TypeScript source directly (no compiled JS), so `visualContract()` needs an esbuild-backed loader to import — Playwright's own test runner already is one, so `npx playwright test` just works. A plain `node script.mjs` relying on Node's own native type-stripping does not: Node refuses to strip types for any file it resolves under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). Run such a script through `tsx` instead.
+
+A login flow too dynamic for a static contract (OAuth, 2FA)? `authenticate` is a function, not JSON — it isn't a contract field or CLI flag. Call `verify()` from `@figloom/verify` directly instead of the `figloom verify` CLI, and pass `VerifyOptions.authenticate: (page) => Promise<void>`, run once per contract right before it navigates.
+
 ## Run verification
 
 ```bash
 npx figloom verify \
   --project-root "$PWD" \
-  --contract .figloom/artifacts/visual-verifications/login/visual-contract.json \
-  --output .figloom/artifacts/visual-verifications/login/visual-verification.json
+  --contract .figloom/visual-verifications/login/visual-contract.json \
+  --output .figloom/visual-verifications/login/visual-verification.json
+```
+
+A batch's contracts each launch their own isolated Chromium instance, so they run up to `--concurrency` at once (default: `min(4, CPU cores)`) instead of one at a time:
+
+```bash
+npx figloom verify \
+  --project-root "$PWD" \
+  --contract .figloom/visual-verifications/login/visual-contract.json \
+  --output .figloom/visual-verifications/login/visual-verification.json \
+  --concurrency 2
 ```
 
 Run same engine with live dashboard:
@@ -259,8 +324,8 @@ Run same engine with live dashboard:
 ```bash
 npx figloom verify \
   --project-root "$PWD" \
-  --contract .figloom/artifacts/visual-verifications/login/visual-contract.json \
-  --output .figloom/artifacts/visual-verifications/login/visual-verification.json \
+  --contract .figloom/visual-verifications/login/visual-contract.json \
+  --output .figloom/visual-verifications/login/visual-verification.json \
   --ui
 ```
 
@@ -270,14 +335,14 @@ Open completed artifact without rerunning:
 
 ```bash
 npx figloom open \
-  --artifact .figloom/artifacts/visual-verifications/login/visual-verification.json
+  --artifact .figloom/visual-verifications/login/visual-verification.json
 ```
 
 Export portable static report into empty directory:
 
 ```bash
 npx figloom report \
-  --artifact .figloom/artifacts/visual-verifications/login/visual-verification.json \
+  --artifact .figloom/visual-verifications/login/visual-verification.json \
   --output ./figloom-report
 ```
 
@@ -289,7 +354,7 @@ Then run independent integrity gate:
 
 ```bash
 npx figloom done-gate \
-  --artifact .figloom/artifacts/visual-verifications/login/visual-verification.json
+  --artifact .figloom/visual-verifications/login/visual-verification.json
 ```
 
 ## Evidence layout
@@ -322,9 +387,12 @@ web-baseline.meta.json
 | `figloom init` | Initialize project config and ignored auth-state directory. |
 | `figloom auth` | Record Playwright storage state through a headed login browser. |
 | `figloom contract create` | Interactively create one feature-scoped visual contract. |
+| `figloom discover` | Turn `visualContract()` recordings from an existing e2e run into schema-v4 contracts. |
 | `figloom status` | Show CLI version, project root, and optional Figma token availability. |
 | `figloom verify` | Resolve Figma or web baseline, capture web target, compare, and write batch artifact. |
-| `figloom open` | Open archived artifact in dashboard without rerunning. |
+| `figloom` (no arguments) | Open a dashboard aggregating every verification found under `.figloom/visual-verifications/`, grouped by feature. Empty project shows an empty state instead of help text. |
+| `figloom dashboard` | Same aggregated dashboard as bare `figloom`, explicit form; supports `--project-root` and `--no-open`. |
+| `figloom open` | Open one archived artifact in dashboard without rerunning. |
 | `figloom report` | Export portable static dashboard for CI artifacts. |
 | `figloom done-gate` | Revalidate persisted evidence before handoff or CI approval. |
 | `figloom fetch-gold` | Fetch one Figma PNG for diagnosis. |
@@ -364,13 +432,13 @@ Exit `1` is valid comparison result, not infrastructure failure.
   run: |
     npx figloom verify \
       --project-root "$PWD" \
-      --contract .figloom/artifacts/visual-verifications/login/visual-contract.json \
-      --output .figloom/artifacts/visual-verifications/login/visual-verification.json
+      --contract .figloom/visual-verifications/login/visual-contract.json \
+      --output .figloom/visual-verifications/login/visual-verification.json
     npx figloom done-gate \
-      --artifact .figloom/artifacts/visual-verifications/login/visual-verification.json
+      --artifact .figloom/visual-verifications/login/visual-verification.json
 ```
 
-Upload `.figloom/artifacts/visual-verifications/` as CI artifact on failure.
+Upload `.figloom/visual-verifications/` as CI artifact on failure.
 
 ## Troubleshooting
 
