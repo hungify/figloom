@@ -1,7 +1,7 @@
 import * as path from "node:path";
 
 import * as p from "@clack/prompts";
-import { FIGMA_NODE_ID } from "@figloom/contracts";
+import { FIGMA_NODE_ID, VISUAL_CONTRACT_FILE, visualArtifactPath } from "@figloom/contracts";
 import {
   createContractRequest,
   writeContractRequest,
@@ -198,7 +198,7 @@ export async function runCreateContract(options: {
   const featureName = contractId.split(".")[0] ?? contractId;
   const outputPath = path.resolve(
     options.projectRoot,
-    options.outputPath ?? `.figloom/artifacts/visual-verifications/${featureName}/visual-contract.json`,
+    options.outputPath ?? visualArtifactPath(featureName, VISUAL_CONTRACT_FILE),
   );
   writeContractRequest(outputPath, request, options.force);
   p.outro(`Created ${outputPath}`);

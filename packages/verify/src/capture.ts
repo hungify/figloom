@@ -39,6 +39,14 @@ export interface CaptureOptions {
   persistStabilitySamples?: boolean;
   timeoutMs?: number;
   maskSelectors?: string[];
+  /** Applied before navigation each capture. Independent of storageStatePath. */
+  cookies?: Array<{ name: string; value: string; domain: string; path?: string }>;
+  extraHeaders?: Record<string, string>;
+  localStorage?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  basicAuth?: { username: string; password: string };
+  /** Pre-navigation login hook (OAuth/2FA); not expressible in JSON contract. */
+  authenticate?: (page: Page) => Promise<void>;
 }
 
 export interface CaptureSuccess {
@@ -77,9 +85,28 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
       viewport: options.viewportSize,
       deviceScaleFactor: DEVICE_SCALE_FACTOR,
       ...(options.storageStatePath ? { storageState: options.storageStatePath } : {}),
+      ...(options.extraHeaders ? { extraHTTPHeaders: options.extraHeaders } : {}),
+      ...(options.basicAuth ? { httpCredentials: options.basicAuth } : {}),
     });
 
-    await page.goto(options.url, { waitUntil: "load", timeout: timeoutMs });
+    if (options.cookies?.length) {
+      await page.context().addCookies(
+        options.cookies.map((cookie) => ({ ...cookie, path: cookie.path ?? "/" })),
+      );
+    }
+    if (options.localStorage) {
+      await page.addInitScript((entries: Array<[string, string]>) => {
+        for (const [key, value] of entries) window.localStorage.setItem(key, value);
+      }, Object.entries(options.localStorage));
+    }
+    await options.authenticate?.(page);
+
+    const navigateUrl = appendQueryParams(options.url, options.queryParams);
+    const expectedUrl = options.expectedUrl
+      ? appendQueryParams(options.expectedUrl, options.queryParams)
+      : options.expectedUrl;
+
+    await page.goto(navigateUrl, { waitUntil: "load", timeout: timeoutMs });
 
     try {
       await page.reload({ waitUntil: "load", timeout: timeoutMs });
@@ -94,7 +121,7 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
       options.hideDevtoolsChrome ?? false,
       options.devtoolsMarker ?? "TANSTACK",
     );
-    const targetReject = await validateTarget(page, options);
+    const targetReject = await validateTarget(page, { ...options, expectedUrl });
     if (targetReject) return targetReject;
 
     if (options.selector) {
@@ -142,7 +169,7 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
           options.hideDevtoolsChrome ?? false,
           options.devtoolsMarker ?? "TANSTACK",
         );
-        const sampleTargetReject = await validateTarget(page, options);
+        const sampleTargetReject = await validateTarget(page, { ...options, expectedUrl });
         if (sampleTargetReject) return sampleTargetReject;
       }
 
@@ -191,6 +218,13 @@ export async function capture(options: CaptureOptions): Promise<CaptureOutcome> 
   } finally {
     await browser?.close();
   }
+}
+
+function appendQueryParams(url: string, params: Record<string, string> | undefined): string {
+  if (!params || Object.keys(params).length === 0) return url;
+  const parsed = new URL(url);
+  for (const [key, value] of Object.entries(params)) parsed.searchParams.set(key, value);
+  return parsed.toString();
 }
 
 async function validateTarget(page: Page, options: CaptureOptions): Promise<RejectResult | null> {

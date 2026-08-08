@@ -1,6 +1,6 @@
 {
   "name": "@figloom/verify",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Visual verification engine for Figma-to-web and web-to-web workflows.",
   "repository": {
     "type": "git",
@@ -17,7 +17,8 @@
   "type": "module",
   "license": "MIT",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./discover": "./src/discover.ts"
   },
   "files": [
     "src",
@@ -33,6 +34,7 @@
     "@figloom/contracts": "workspace:*",
     "@figma/rest-api-spec": "^0.41.0",
     "@playwright/test": "^1.61.1",
+    "p-map": "^7.0.6",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "ssim.js": "^3.5.0",

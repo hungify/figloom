@@ -23,6 +23,7 @@ describe("project init", () => {
     const config = fs.readFileSync(result.configPath, "utf8");
 
     expect(config).toContain('// storageStatePath: ".figloom/auth/user.json"');
+    expect(config).toContain('// envFile: ".env.playwright"');
     expect(fs.readFileSync(result.authGitignorePath, "utf8")).toBe("*\n!.gitignore\n");
     expect(fs.existsSync(result.authStatePath)).toBe(false);
   });

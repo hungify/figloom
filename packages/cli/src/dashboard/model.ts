@@ -31,7 +31,7 @@ function runIdFor(artifact: VerificationArtifact): string {
     .slice(0, 16);
 }
 
-function summarize(contracts: DashboardContractResult[]): DashboardSummary {
+export function summarize(contracts: DashboardContractResult[]): DashboardSummary {
   const summary: DashboardSummary = {
     total: contracts.length,
     queued: 0,
@@ -44,7 +44,7 @@ function summarize(contracts: DashboardContractResult[]): DashboardSummary {
   return summary;
 }
 
-function overallStatus(summary: DashboardSummary): DashboardVerdict {
+export function overallStatus(summary: DashboardSummary): DashboardVerdict {
   if (summary.running) return "running";
   if (summary.queued) return "queued";
   if (summary.blocked) return "blocked";

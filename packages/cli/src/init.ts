@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import * as p from "@clack/prompts";
+import { DEFAULT_AUTH_STATE_PATH } from "@figloom/contracts";
 
 const CONFIG_FILES = [
   "figloom.config.ts",
@@ -9,13 +10,12 @@ const CONFIG_FILES = [
   "figloom.config.js",
   "figloom.config.mjs",
 ] as const;
-const AUTH_STATE_PATH = ".figloom/auth/user.json";
 const AUTH_GITIGNORE = "*\n!.gitignore\n";
 const CONFIG_SOURCE = `import { defineConfig } from "figloom-verify";
 
 export default defineConfig({
-  // Authenticated screens only:
-  // storageStatePath: "${AUTH_STATE_PATH}",
+  // envFile: ".env.playwright",
+  // storageStatePath: "${DEFAULT_AUTH_STATE_PATH}",
 });
 `;
 
@@ -37,7 +37,7 @@ export function initializeProject(
     throw new Error(`Multiple Figloom config files found: ${existingConfigPaths.join(", ")}. Keep exactly one.`);
   }
   const configPath = existingConfigPaths[0] ?? path.join(root, CONFIG_FILES[0]);
-  const authStatePath = path.join(root, AUTH_STATE_PATH);
+  const authStatePath = path.join(root, DEFAULT_AUTH_STATE_PATH);
   const authGitignorePath = path.join(path.dirname(authStatePath), ".gitignore");
 
   if (existingConfigPaths.length === 1 && !force) {

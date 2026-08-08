@@ -12,6 +12,8 @@ export interface DashboardImageEvidence {
 export interface DashboardContractResult {
   id: string;
   name: string;
+  /** Set when aggregating multiple verification artifacts. */
+  feature?: string;
   tags: string[];
   status: DashboardVerdict;
   phase: DashboardPhase;

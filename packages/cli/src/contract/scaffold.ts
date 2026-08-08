@@ -4,6 +4,7 @@ import * as path from "node:path";
 import {
   SCHEMA_VERSION,
   verificationRequestSchema,
+  visualArtifactPath,
   type VerificationRequest,
 } from "@figloom/contracts";
 
@@ -38,7 +39,7 @@ export function createContractRequest(answers: ContractAnswers): VerificationReq
         id: answers.contractId,
         baseline: answers.baseline,
         viewport: answers.viewport,
-        outDir: `.figloom/artifacts/visual-verifications/${outDirName}`,
+        outDir: visualArtifactPath(outDirName),
         scope: answers.scope,
         ...(answers.scope.kind === "region" ? { profile: "component/strict" as const } : {}),
       },

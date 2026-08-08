@@ -28,7 +28,7 @@ describe("contract scaffold", () => {
     expect(request).toMatchObject({
       schemaVersion: 4,
       target: { kind: "web", url: "http://127.0.0.1:3000/login", auth: "none" },
-      contracts: [{ id: "login.desktop", outDir: ".figloom/artifacts/visual-verifications/login/desktop" }],
+      contracts: [{ id: "login.desktop", outDir: ".figloom/visual-verifications/login/desktop" }],
     });
   });
 

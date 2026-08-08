@@ -16,6 +16,13 @@
   --color-red: #e88388;
   --color-amber: #d8b566;
   --color-blue: #82aef2;
+  --color-selection: #173a63;
+  --color-selection-fg: #e7f1ff;
+  --color-panel-deep: #15171a;
+  --color-panel-hover: #22262b;
+  --color-danger-surface: #211719;
+  --color-text-soft: #b7bbc0;
+  --color-text-subtle: #adb2b8;
 }
 
 :root {

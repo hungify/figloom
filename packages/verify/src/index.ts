@@ -45,7 +45,10 @@ export type {
 } from "./done-gate.ts";
 export { fetchGold, goldMetaPath, readGoldMeta, resolveToken } from "./fetch-gold.ts";
 export type { FetchGoldOptions, FetchGoldOutcome, GoldMeta } from "./fetch-gold.ts";
-export { loadAncestorEnv } from "./load-env.ts";
+export { loadEnvFiles, loadProjectEnv } from "./load-env.ts";
+export { runWithConcurrency } from "./concurrency.ts";
+export { DEFAULT_DISCOVERY_DIR, readDiscoveredContracts, visualContract } from "./discover.ts";
+export type { DiscoveredContractFile, VisualContractOptions, VisualContractPage } from "./discover.ts";
 export { resolveArtifactPath } from "./paths.ts";
 export { clearNodeMetaCache } from "./figma-api.ts";
 export { checkGoldStaleness, DEFAULT_MAX_GOLD_AGE_DAYS } from "./staleness.ts";
@@ -104,6 +107,8 @@ export {
   figmaBaselineSchema,
   webBaselineSchema,
   webTargetSchema,
+  contractScopeSchema,
+  discoveredContractSchema,
   verificationContractSchema,
   verificationRequestSchema,
   verificationArtifactSchema,
@@ -116,4 +121,6 @@ export type {
   FigmaBaselineSource,
   WebBaselineSource,
   WebTarget,
+  ContractScope,
+  DiscoveredContract,
 } from "@figloom/contracts";

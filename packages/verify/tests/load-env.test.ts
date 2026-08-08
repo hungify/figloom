@@ -4,7 +4,7 @@ import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { loadAncestorEnv } from "../src/load-env.ts";
+import { loadEnvFiles, loadProjectEnv } from "../src/load-env.ts";
 
 const originalValue = process.env.FIGLOOM_LOAD_ENV_TEST;
 
@@ -16,27 +16,59 @@ afterEach(() => {
   }
 });
 
-describe("loadAncestorEnv", () => {
-  it("stops loading env files above the nearest repository root", () => {
+describe("loadProjectEnv", () => {
+  it("loads .env from the project root only", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "fidelity-env-"));
-    const repo = path.join(root, "repo");
-    const nested = path.join(repo, "apps", "web");
+    const nested = path.join(root, "apps", "web");
     fs.mkdirSync(nested, { recursive: true });
-    fs.writeFileSync(path.join(repo, ".git"), "");
-    fs.writeFileSync(
-      path.join(root, ".env"),
-      "FIGLOOM_LOAD_ENV_TEST=outside\n",
-    );
-    fs.writeFileSync(
-      path.join(repo, ".env"),
-      "FIGLOOM_LOAD_ENV_TEST=inside\n",
-    );
+    fs.writeFileSync(path.join(root, ".env"), "FIGLOOM_LOAD_ENV_TEST=root\n");
+    fs.writeFileSync(path.join(nested, ".env"), "FIGLOOM_LOAD_ENV_TEST=nested\n");
 
     delete process.env.FIGLOOM_LOAD_ENV_TEST;
-    const loaded = loadAncestorEnv(nested);
+    const loaded = loadProjectEnv(root);
 
-    expect(loaded).toEqual([path.join(repo, ".env")]);
-    expect(process.env.FIGLOOM_LOAD_ENV_TEST).toBe("inside");
+    expect(loaded).toEqual([path.join(root, ".env")]);
+    expect(process.env.FIGLOOM_LOAD_ENV_TEST).toBe("root");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("lets callers override which env basenames are loaded", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fidelity-env-custom-"));
+    fs.writeFileSync(path.join(root, ".env"), "FIGLOOM_LOAD_ENV_TEST=default\n");
+    fs.writeFileSync(path.join(root, ".env.playwright"), "FIGLOOM_LOAD_ENV_TEST=playwright\n");
+
+    delete process.env.FIGLOOM_LOAD_ENV_TEST;
+    const loaded = loadProjectEnv(root, { files: [".env.playwright"] });
+
+    expect(loaded).toEqual([path.join(root, ".env.playwright")]);
+    expect(process.env.FIGLOOM_LOAD_ENV_TEST).toBe("playwright");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("skips missing default files", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fidelity-env-empty-"));
+    delete process.env.FIGLOOM_LOAD_ENV_TEST;
+    expect(loadProjectEnv(root)).toEqual([]);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe("loadEnvFiles", () => {
+  it("loads project-relative custom env files without overwriting existing keys", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fidelity-env-files-"));
+    fs.writeFileSync(path.join(root, ".env.playwright"), "FIGLOOM_LOAD_ENV_TEST=custom\n");
+
+    process.env.FIGLOOM_LOAD_ENV_TEST = "preset";
+    const loaded = loadEnvFiles(root, ".env.playwright");
+
+    expect(loaded).toEqual([path.join(root, ".env.playwright")]);
+    expect(process.env.FIGLOOM_LOAD_ENV_TEST).toBe("preset");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("rejects parent traversal", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fidelity-env-escape-"));
+    expect(() => loadEnvFiles(root, "../.env")).toThrow(/project-relative/);
     fs.rmSync(root, { recursive: true, force: true });
   });
 });
